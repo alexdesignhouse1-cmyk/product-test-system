@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>产品测试记录系统</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#ffffff;--bg2:#f8f8f6;--bg3:#f1efe8;
+  --text:#1a1a1a;--text2:#6b6b6b;--text3:#999;
+  --border:rgba(0,0,0,0.1);--border2:rgba(0,0,0,0.2);
+  --red:#A32D2D;--redbg:#FCEBEB;--amber:#854F0B;--amberbg:#FAEEDA;
+  --blue:#185FA5;--bluebg:#E6F1FB;--green:#3B6D11;--greenbg:#EAF3DE;
+  --purple:#534AB7;--purplebg:#EEEDFE;--teal:#0F6E56;--tealbg:#E1F5EE;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg2);color:var(--text);min-height:100vh}
+.topbar{background:var(--bg);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;gap:16px;height:52px;position:sticky;top:0;z-index:100}
+.logo{font-size:15px;font-weight:600;color:var(--text)}
+.logo span{color:var(--blue)}
+.nav{display:flex;gap:2px;margin-left:16px}
+.nav-btn{padding:6px 14px;font-size:13px;border:none;background:none;cursor:pointer;color:var(--text2);border-radius:6px}
+.nav-btn:hover{background:var(--bg2)}
+.nav-btn.active{background:var(--bg3);color:var(--text);font-weight:500}
+.topbar-right{margin-left:auto;font-size:13px;color:var(--text2)}
+.main{max-width:1200px;margin:0 auto;padding:24px}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px}
+.stat-label{font-size:12px;color:var(--text2);margin-bottom:8px}
+.stat-value{font-size:24px;font-weight:600}
+.stat-value.blue{color:var(--blue)}.stat-value.red{color:var(--red)}.stat-value.amber{color:var(--amber)}.stat-value.green{color:var(--green)}
+.prog{height:4px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden}
+.prog-fill{height:100%;background:var(--blue);border-radius:2px;transition:width .3s}
+.card{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px}
+.toolbar{display:flex;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
+input,select,textarea{font-family:inherit;font-size:13px;border:1px solid var(--border2);border-radius:7px;background:var(--bg);color:var(--text);padding:0 10px;height:34px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(24,95,165,0.1)}
+textarea{height:72px;padding:8px 10px;resize:vertical}
+input.err{border-color:var(--red)}
+.toolbar input{width:200px}.toolbar select{width:140px}
+.btn{height:34px;padding:0 16px;font-size:13px;border-radius:7px;cursor:pointer;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-family:inherit}
+.btn:hover{background:var(--bg2)}
+.btn-primary{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:500}
+.btn-primary:hover{opacity:.85}
+.btn-sm{height:28px;padding:0 10px;font-size:12px}
+.btn-danger{color:var(--red);border-color:rgba(163,45,45,.3)}
+.btn-danger:hover{background:var(--redbg)}
+.spacer{flex:1}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:10px 14px;text-align:left;font-weight:500;color:var(--text2);font-size:12px;background:var(--bg2);border-bottom:1px solid var(--border)}
+td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg2)}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.b-red{background:var(--redbg);color:var(--red)}.b-purple{background:var(--purplebg);color:var(--purple)}
+.b-amber{background:var(--amberbg);color:var(--amber)}.b-blue{background:var(--bluebg);color:var(--blue)}
+.b-teal{background:var(--tealbg);color:var(--teal)}.b-gray{background:var(--bg3);color:var(--text2)}
+.b-green{background:var(--greenbg);color:var(--green)}
+.thumb{width:34px;height:34px;border-radius:5px;object-fit:cover;border:1px solid var(--border);cursor:pointer}
+.thumb-file{width:34px;height:34px;border-radius:5px;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text2);cursor:pointer}
+.attach-row{display:flex;gap:4px;flex-wrap:wrap}
+.rc-text{color:var(--text2);font-size:12px;line-height:1.5;max-width:280px}
+.empty{text-align:center;padding:3rem;color:var(--text2);font-size:13px}
+.loading{text-align:center;padding:2rem;color:var(--text2);font-size:13px}
+.prog-row{font-size:11px;color:var(--text2);margin-top:2px}
+
+/* modal */
+.modal-wrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto}
+.modal-wrap.open{display:flex}
+.modal{background:var(--bg);border-radius:12px;border:1px solid var(--border);padding:24px;width:560px;max-width:100%}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:20px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg.full{grid-column:1/-1}
+.fg label{font-size:12px;color:var(--text2)}
+.err-msg{font-size:11px;color:var(--red);margin-top:2px}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.upload-zone{border:1.5px dashed var(--border2);border-radius:8px;padding:14px;text-align:center;cursor:pointer;font-size:13px;color:var(--text2)}
+.upload-zone:hover{background:var(--bg2)}
+.upload-previews{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.up-item{position:relative}
+.up-item img,.up-item video{width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block}
+.up-item .up-file{width:70px;height:70px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;color:var(--text2);gap:3px}
+.up-rm{position:absolute;top:-6px;right:-6px;width:17px;height:17px;background:var(--red);color:#fff;border-radius:50%;border:none;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center}
+
+/* preview */
+.preview-wrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:300;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.preview-wrap.open{display:flex}
+.preview-wrap img{max-width:90vw;max-height:75vh;border-radius:8px}
+.preview-wrap video{max-width:90vw;max-height:75vh;border-radius:8px}
+.preview-close{color:#fff;font-size:13px;cursor:pointer;padding:7px 20px;border:1px solid rgba(255,255,255,.35);border-radius:6px}
+
+/* users */
+.user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;padding:16px}
+.user-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px}
+.uc-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
+.av0{background:var(--bluebg);color:var(--blue)}.av1{background:var(--tealbg);color:var(--teal)}
+.av2{background:var(--amberbg);color:var(--amber)}.av3{background:var(--purplebg);color:var(--purple)}
+.av4{background:var(--redbg);color:var(--red)}
+.uc-name{font-size:14px;font-weight:500}
+.uc-meta{font-size:12px;color:var(--text2)}
+.uc-actions{display:flex;gap:6px;margin-top:10px}
+
+/* toast */
+.toast{position:fixed;bottom:24px;right:24px;background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+@media(max-width:768px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  .main{padding:16px}
+  .toolbar input{width:150px}
+  table{font-size:12px}
+  th,td{padding:8px 10px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">产品<span>测试</span>记录系统</div>
+  <div class="nav">
+    <button class="nav-btn active" onclick="switchPage('records',this)">测试记录</button>
+    <button class="nav-btn" onclick="switchPage('users',this)">用户管理</button>
+  </div>
+  <div class="topbar-right" id="topbar-info">加载中...</div>
+</div>
+
+<div class="main">
+
+<!-- 测试记录页 -->
+<div id="page-records">
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">总记录数</div><div class="stat-value" id="s-total">—</div></div>
+    <div class="stat-card">
+      <div class="stat-label">今日已测 / 工单总量</div>
+      <div class="stat-value blue" id="s-tested">—</div>
+      <div class="prog"><div class="prog-fill" id="s-prog" style="width:0%"></div></div>
+    </div>
+    <div class="stat-card"><div class="stat-label">功能异常</div><div class="stat-value red" id="s-func">—</div></div>
+    <div class="stat-card"><div class="stat-label">今日剩余待测</div><div class="stat-value amber" id="s-remain">—</div></div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <input type="text" id="search-inp" placeholder="搜索型号 / 工单 / Root Cause..." oninput="renderTable()">
+      <select id="filter-issue" onchange="renderTable()">
+        <option value="">全部 Issue 类型</option>
+        <option>功能异常</option><option>外观缺陷</option><option>性能不达标</option>
+        <option>兼容性问题</option><option>安全隐患</option><option>其他</option>
+      </select>
+      <input type="date" id="filter-date" onchange="renderTable()" style="width:150px">
+      <div class="spacer"></div>
+      <button class="btn btn-primary" onclick="openRecordModal()">+ 新增记录</button>
+    </div>
+    <div id="table-wrap">
+      <div class="loading">正在加载数据...</div>
+    </div>
+  </div>
+</div>
+
+<!-- 用户管理页 -->
+<div id="page-users" style="display:none">
+  <div class="card">
+    <div class="toolbar">
+      <input type="text" id="user-search" placeholder="搜索姓名 / 工号..." oninput="renderUsers()" style="width:200px">
+      <div class="spacer"></div>
+      <button class="btn btn-primary" onclick="openUserModal()">+ 新增用户</button>
+    </div>
+    <div class="user-grid" id="user-grid"><div class="loading">正在加载...</div></div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- 测试记录弹窗 -->
+<div class="modal-wrap" id="record-modal">
+<div class="modal">
+  <h2 id="rm-title">新增测试记录</h2>
+  <div class="form-grid">
+    <div class="fg">
+      <label>产品型号 *</label>
+      <input id="f-model" placeholder="≤9位 字母+数字" maxlength="9" oninput="validateModel()">
+      <span class="err-msg" id="err-model" style="display:none">仅限字母+数字，不超过9位</span>
+    </div>
+    <div class="fg">
+      <label>生产工单 *</label>
+      <input id="f-wo" placeholder="M + 6位数字" maxlength="7" oninput="validateWO()">
+      <span class="err-msg" id="err-wo" style="display:none">格式：M + 6位数字，如 M100001</span>
+    </div>
+    <div class="fg">
+      <label>工单总数量 *</label>
+      <input type="number" id="f-total" placeholder="如 1000" min="1">
+    </div>
+    <div class="fg">
+      <label>今日已测数量 *</label>
+      <input type="number" id="f-tested" placeholder="如 200" min="0">
+    </div>
+    <div class="fg">
+      <label>测试日期 *</label>
+      <input type="date" id="f-date">
+    </div>
+    <div class="fg">
+      <label>Issue 类型 *</label>
+      <select id="f-issue">
+        <option>功能异常</option><option>外观缺陷</option><option>性能不达标</option>
+        <option>兼容性问题</option><option>安全隐患</option><option>其他</option>
+      </select>
+    </div>
+    <div class="fg">
+      <label>测试人员</label>
+      <select id="f-tester"><option value="">请选择</option></select>
+    </div>
+    <div class="fg full">
+      <label>研发分析 Root Cause *</label>
+      <textarea id="f-rc" placeholder="描述根本原因分析..."></textarea>
+    </div>
+    <div class="fg full">
+      <label>附件上传（图片 / 视频 / 文档）</label>
+      <div class="upload-zone" onclick="document.getElementById('file-inp').click()">点击上传文件（图片、视频、PDF 等）</div>
+      <input type="file" id="file-inp" multiple accept="image/*,video/*,.pdf,.doc,.docx,.xlsx" style="display:none" onchange="handleFiles(event)">
+      <div class="upload-previews" id="upload-previews"></div>
+    </div>
+  </div>
+  <div class="modal-btns">
+    <button class="btn" onclick="closeRecordModal()">取消</button>
+    <button class="btn btn-primary" id="rm-save-btn" onclick="saveRecord()">保存</button>
+  </div>
+</div>
+</div>
+
+<!-- 用户弹窗 -->
+<div class="modal-wrap" id="user-modal">
+<div class="modal" style="width:420px">
+  <h2 id="um-title">新增用户</h2>
+  <div class="form-grid">
+    <div class="fg"><label>姓名 *</label><input id="u-name" placeholder="请输入姓名"></div>
+    <div class="fg"><label>工号 *</label><input id="u-empid" placeholder="如 EMP001"></div>
+    <div class="fg"><label>部门</label>
+      <select id="u-dept"><option>测试部</option><option>研发部</option><option>生产部</option><option>品质部</option><option>其他</option></select>
+    </div>
+    <div class="fg"><label>角色</label>
+      <select id="u-role"><option>测试员</option><option>研发工程师</option><option>品质工程师</option><option>管理员</option></select>
+    </div>
+    <div class="fg full"><label>备注</label><input id="u-note" placeholder="可选"></div>
+  </div>
+  <div class="modal-btns">
+    <button class="btn" onclick="closeUserModal()">取消</button>
+    <button class="btn btn-primary" onclick="saveUser()">保存</button>
+  </div>
+</div>
+</div>
+
+<!-- 预览 -->
+<div class="preview-wrap" id="preview-wrap">
+  <div id="preview-content"></div>
+  <div class="preview-close" onclick="closePreview()">关闭预览</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPA_URL = 'https://zrwfpakmzdqhphdcdkzo.supabase.co';
+const SUPA_KEY = 'sb_publishable_Ut3TIDztI5-QYRAK4fjOVA_4e14FsV3';
+const { createClient } = supabase;
+const db = createClient(SUPA_URL, SUPA_KEY);
+
+let records = [];
+let users = [];
+let editRecordId = null;
+let editUserId = null;
+let pendingFiles = [];
+
+const issueBadge = {
+  '功能异常':'b-red','外观缺陷':'b-purple','性能不达标':'b-amber',
+  '兼容性问题':'b-blue','安全隐患':'b-red','其他':'b-gray'
+};
+
+function toast(msg, dur=2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+}
+
+function switchPage(p, btn) {
+  document.getElementById('page-records').style.display = p==='records'?'':'none';
+  document.getElementById('page-users').style.display = p==='users'?'':'none';
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (p==='users') renderUsers();
+}
+
+// ── 加载数据 ──
+async function loadRecords() {
+  const { data, error } = await db.from('test_records').select('*').order('created_at', { ascending: false });
+  if (error) { console.error(error); toast('加载记录失败'); return; }
+  records = data || [];
+  renderTable();
+}
+
+async function loadUsers() {
+  const { data, error } = await db.from('users').select('*').order('created_at', { ascending: true });
+  if (error) { console.error(error); return; }
+  users = data || [];
+  document.getElementById('topbar-info').textContent = '共 ' + users.length + ' 名用户';
+}
+
+// ── 渲染表格 ──
+function renderTable() {
+  const q = document.getElementById('search-inp').value.toLowerCase();
+  const fi = document.getElementById('filter-issue').value;
+  const fd = document.getElementById('filter-date').value;
+  const filtered = records.filter(r =>
+    (!q || r.model.toLowerCase().includes(q) || r.wo.toLowerCase().includes(q) || (r.root_cause||'').toLowerCase().includes(q)) &&
+    (!fi || r.issue_type === fi) &&
+    (!fd || r.test_date === fd)
+  );
+  updateStats();
+  const wrap = document.getElementById('table-wrap');
+  if (!filtered.length) {
+    wrap.innerHTML = '<div class="empty">暂无符合条件的记录</div>';
+    return;
+  }
+  wrap.innerHTML = `<div style="overflow-x:auto"><table>
+    <thead><tr>
+      <th style="width:90px">产品型号</th>
+      <th style="width:100px">生产工单</th>
+      <th style="width:150px">工单数量</th>
+      <th style="width:95px">测试日期</th>
+      <th style="width:100px">Issue 类型</th>
+      <th>Root Cause</th>
+      <th style="width:80px">附件</th>
+      <th style="width:90px"></th>
+    </tr></thead>
+    <tbody>${filtered.map(r => {
+      const remain = Math.max(0, r.total_qty - r.tested_qty);
+      const pct = r.total_qty > 0 ? Math.round(r.tested_qty / r.total_qty * 100) : 0;
+      const files = r.attachments || [];
+      const thumbs = files.map(f => {
+        if (f.type==='image') return `<img class="thumb" src="${f.url}" title="${f.name}" onclick="previewFile('${f.url}','image')">`;
+        if (f.type==='video') return `<div class="thumb-file" onclick="previewFile('${f.url}','video')" title="${f.name}" style="font-size:11px">▶</div>`;
+        return `<div class="thumb-file" title="${f.name}">${f.ext}</div>`;
+      }).join('');
+      return `<tr>
+        <td style="font-weight:600">${r.model}</td>
+        <td style="font-family:monospace;font-size:12px">${r.wo}</td>
+        <td>
+          <div style="font-size:12px">总量 <b>${r.total_qty}</b> · 已测 <b>${r.tested_qty}</b></div>
+          <div class="prog-row">剩余 ${remain} 台 · ${pct}%</div>
+          <div class="prog" style="margin-top:4px"><div class="prog-fill" style="width:${pct}%"></div></div>
+        </td>
+        <td style="color:var(--text2);font-size:12px">${r.test_date}</td>
+        <td><span class="badge ${issueBadge[r.issue_type]||'b-gray'}">${r.issue_type}</span></td>
+        <td><div class="rc-text">${r.root_cause}</div>${r.tester?`<div style="font-size:11px;color:var(--text2);margin-top:3px">👤 ${r.tester}</div>`:''}</td>
+        <td><div class="attach-row">${thumbs||'<span style="font-size:11px;color:var(--text2)">—</span>'}</div></td>
+        <td>
+          <button class="btn btn-sm" onclick="editRecord('${r.id}')" style="margin-bottom:4px;width:100%">编辑</button>
+          <button class="btn btn-sm btn-danger" onclick="delRecord('${r.id}')" style="width:100%">删除</button>
+        </td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+function updateStats() {
+  const today = new Date().toISOString().slice(0,10);
+  const todayRecs = records.filter(r => r.test_date === today);
+  const todayTested = todayRecs.reduce((a,b) => a+b.tested_qty, 0);
+  const todayTotal = todayRecs.reduce((a,b) => a+b.total_qty, 0);
+  const remain = Math.max(0, todayTotal - todayTested);
+  const pct = todayTotal > 0 ? Math.round(todayTested/todayTotal*100) : 0;
+  document.getElementById('s-total').textContent = records.length;
+  document.getElementById('s-tested').textContent = todayTested + ' / ' + todayTotal;
+  document.getElementById('s-prog').style.width = pct + '%';
+  document.getElementById('s-func').textContent = records.filter(r=>r.issue_type==='功能异常').length;
+  document.getElementById('s-remain').textContent = remain;
+}
+
+// ── 测试记录 CRUD ──
+function validateModel() {
+  const v = document.getElementById('f-model').value;
+  const ok = /^[A-Za-z0-9]{1,9}$/.test(v);
+  document.getElementById('err-model').style.display = v&&!ok ? 'block':'none';
+  document.getElementById('f-model').classList.toggle('err', v&&!ok);
+  return !v || ok;
+}
+function validateWO() {
+  const v = document.getElementById('f-wo').value;
+  const ok = /^M\d{6}$/.test(v);
+  document.getElementById('err-wo').style.display = v&&!ok ? 'block':'none';
+  document.getElementById('f-wo').classList.toggle('err', v&&!ok);
+  return !v || ok;
+}
+
+function handleFiles(e) {
+  Array.from(e.target.files).forEach(f => {
+    const url = URL.createObjectURL(f);
+    const ext = f.name.split('.').pop().toUpperCase();
+    let type = 'file';
+    if (f.type.startsWith('image/')) type = 'image';
+    else if (f.type.startsWith('video/')) type = 'video';
+    pendingFiles.push({ name: f.name, url, type, ext });
+  });
+  renderUploadPreviews();
+  document.getElementById('file-inp').value = '';
+}
+function renderUploadPreviews() {
+  document.getElementById('upload-previews').innerHTML = pendingFiles.map((f,i) => {
+    let inner = '';
+    if (f.type==='image') inner = `<img src="${f.url}" style="width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block">`;
+    else if (f.type==='video') inner = `<video src="${f.url}" style="width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block" muted></video>`;
+    else inner = `<div class="up-file"><span style="font-size:18px">📄</span><span>${f.ext}</span></div>`;
+    return `<div class="up-item">${inner}<button class="up-rm" onclick="removeFile(${i})">✕</button></div>`;
+  }).join('');
+}
+function removeFile(i) { pendingFiles.splice(i,1); renderUploadPreviews(); }
+
+function openRecordModal() {
+  editRecordId = null; pendingFiles = [];
+  document.getElementById('rm-title').textContent = '新增测试记录';
+  document.getElementById('f-model').value = '';
+  document.getElementById('f-wo').value = '';
+  document.getElementById('f-total').value = '';
+  document.getElementById('f-tested').value = '';
+  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('f-issue').value = '功能异常';
+  document.getElementById('f-rc').value = '';
+  document.getElementById('f-tester').innerHTML = '<option value="">请选择</option>' + users.map(u=>`<option>${u.name}</option>`).join('');
+  renderUploadPreviews();
+  document.getElementById('record-modal').classList.add('open');
+}
+function editRecord(id) {
+  const r = records.find(x => x.id === id); if (!r) return;
+  editRecordId = id; pendingFiles = [...(r.attachments||[])];
+  document.getElementById('rm-title').textContent = '编辑测试记录';
+  document.getElementById('f-model').value = r.model;
+  document.getElementById('f-wo').value = r.wo;
+  document.getElementById('f-total').value = r.total_qty;
+  document.getElementById('f-tested').value = r.tested_qty;
+  document.getElementById('f-date').value = r.test_date;
+  document.getElementById('f-issue').value = r.issue_type;
+  document.getElementById('f-rc').value = r.root_cause;
+  document.getElementById('f-tester').innerHTML = '<option value="">请选择</option>' + users.map(u=>`<option ${u.name===r.tester?'selected':''}>${u.name}</option>`).join('');
+  renderUploadPreviews();
+  document.getElementById('record-modal').classList.add('open');
+}
+function closeRecordModal() { document.getElementById('record-modal').classList.remove('open'); }
+
+async function saveRecord() {
+  const model = document.getElementById('f-model').value.trim();
+  const wo = document.getElementById('f-wo').value.trim();
+  const total_qty = parseInt(document.getElementById('f-total').value)||0;
+  const tested_qty = parseInt(document.getElementById('f-tested').value)||0;
+  const test_date = document.getElementById('f-date').value;
+  const issue_type = document.getElementById('f-issue').value;
+  const root_cause = document.getElementById('f-rc').value.trim();
+  const tester = document.getElementById('f-tester').value;
+  if (!model||!wo||!test_date||!root_cause||!total_qty) { toast('请填写所有必填字段'); return; }
+  if (!/^[A-Za-z0-9]{1,9}$/.test(model)) { toast('产品型号格式不正确'); return; }
+  if (!/^M\d{6}$/.test(wo)) { toast('工单格式不正确'); return; }
+  const btn = document.getElementById('rm-save-btn');
+  btn.textContent = '保存中...'; btn.disabled = true;
+  const payload = { model, wo, total_qty, tested_qty, test_date, issue_type, root_cause, tester, attachments: pendingFiles };
+  let error;
+  if (editRecordId) {
+    ({ error } = await db.from('test_records').update(payload).eq('id', editRecordId));
+  } else {
+    ({ error } = await db.from('test_records').insert(payload));
+  }
+  btn.textContent = '保存'; btn.disabled = false;
+  if (error) { toast('保存失败：' + error.message); return; }
+  toast(editRecordId ? '记录已更新' : '记录已保存');
+  closeRecordModal();
+  await loadRecords();
+}
+
+async function delRecord(id) {
+  if (!confirm('确认删除此条记录？')) return;
+  const { error } = await db.from('test_records').delete().eq('id', id);
+  if (error) { toast('删除失败'); return; }
+  toast('已删除');
+  await loadRecords();
+}
+
+// ── 用户管理 ──
+function renderUsers() {
+  const q = document.getElementById('user-search').value.toLowerCase();
+  const avClass = ['av0','av1','av2','av3','av4'];
+  const filtered = users.filter(u => u.name.toLowerCase().includes(q) || u.emp_id.toLowerCase().includes(q));
+  const grid = document.getElementById('user-grid');
+  if (!filtered.length) { grid.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:1rem">暂无用户</div>'; return; }
+  grid.innerHTML = filtered.map((u,i) => `
+    <div class="user-card">
+      <div class="uc-head">
+        <div class="avatar ${avClass[i%5]}">${u.name.slice(0,2)}</div>
+        <div><div class="uc-name">${u.name}</div><div class="uc-meta">${u.emp_id} · ${u.dept}</div></div>
+      </div>
+      <span class="badge b-blue">${u.role}</span>
+      ${u.note?`<div style="font-size:12px;color:var(--text2);margin-top:8px">${u.note}</div>`:''}
+      <div class="uc-actions">
+        <button class="btn btn-sm" onclick="editUser('${u.id}')">编辑</button>
+        <button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')">删除</button>
+      </div>
+    </div>`).join('');
+}
+
+function openUserModal() {
+  editUserId = null;
+  document.getElementById('um-title').textContent = '新增用户';
+  ['u-name','u-empid','u-note'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('u-dept').value='测试部';
+  document.getElementById('u-role').value='测试员';
+  document.getElementById('user-modal').classList.add('open');
+}
+function editUser(id) {
+  const u = users.find(x=>x.id===id); if(!u) return;
+  editUserId = id;
+  document.getElementById('um-title').textContent = '编辑用户';
+  document.getElementById('u-name').value = u.name;
+  document.getElementById('u-empid').value = u.emp_id;
+  document.getElementById('u-dept').value = u.dept;
+  document.getElementById('u-role').value = u.role;
+  document.getElementById('u-note').value = u.note||'';
+  document.getElementById('user-modal').classList.add('open');
+}
+function closeUserModal() { document.getElementById('user-modal').classList.remove('open'); }
+
+async function saveUser() {
+  const name = document.getElementById('u-name').value.trim();
+  const emp_id = document.getElementById('u-empid').value.trim();
+  const dept = document.getElementById('u-dept').value;
+  const role = document.getElementById('u-role').value;
+  const note = document.getElementById('u-note').value.trim();
+  if (!name||!emp_id) { toast('姓名和工号为必填项'); return; }
+  const payload = { name, emp_id, dept, role, note };
+  let error;
+  if (editUserId) {
+    ({ error } = await db.from('users').update(payload).eq('id', editUserId));
+  } else {
+    ({ error } = await db.from('users').insert(payload));
+  }
+  if (error) { toast('保存失败：' + (error.message.includes('unique')? '工号已存在' : error.message)); return; }
+  toast(editUserId ? '用户已更新' : '用户已添加');
+  closeUserModal();
+  await loadUsers();
+  renderUsers();
+}
+
+async function delUser(id) {
+  if (!confirm('确认删除该用户？')) return;
+  const { error } = await db.from('users').delete().eq('id', id);
+  if (error) { toast('删除失败'); return; }
+  toast('已删除');
+  await loadUsers();
+  renderUsers();
+}
+
+// ── 预览 ──
+function previewFile(url, type) {
+  const pc = document.getElementById('preview-content');
+  if (type==='image') pc.innerHTML = `<img src="${url}">`;
+  else pc.innerHTML = `<video src="${url}" controls autoplay style="max-width:90vw;max-height:75vh;border-radius:8px"></video>`;
+  document.getElementById('preview-wrap').classList.add('open');
+}
+function closePreview() { document.getElementById('preview-wrap').classList.remove('open'); }
+
+// ── 初始化 ──
+(async () => {
+  await loadUsers();
+  await loadRecords();
+})();
+</script>
+</body>
+</html>
