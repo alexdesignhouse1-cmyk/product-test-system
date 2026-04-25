@@ -1,80 +1,1018 @@
--- 完全重建
-drop table if exists defect_logs cascade;
-drop table if exists daily_reports cascade;
-drop table if exists work_orders cascade;
-drop table if exists users cascade;
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>产品测试记录系统</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#fff;--bg2:#f8f8f6;--bg3:#f1efe8;
+  --text:#1a1a1a;--text2:#6b6b6b;--text3:#bbb;
+  --border:rgba(0,0,0,0.1);--border2:rgba(0,0,0,0.2);
+  --blue:#185FA5;--bluebg:#E6F1FB;
+  --red:#A32D2D;--redbg:#FCEBEB;
+  --amber:#854F0B;--amberbg:#FAEEDA;
+  --green:#3B6D11;--greenbg:#EAF3DE;
+  --purple:#534AB7;--purplebg:#EEEDFE;
+  --teal:#0F6E56;--tealbg:#E1F5EE;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg2);color:var(--text);min-height:100vh}
 
--- 用户表
-create table users (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  emp_id text not null unique,
-  password text not null default '123456',
-  dept text not null default '测试部',
-  role text not null default 'tester',
-  note text default '',
-  created_at timestamptz default now()
-);
+/* ── LOGIN ── */
+.login-page{min-height:100vh;display:flex;align-items:center;justify-content:center}
+.login-box{background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:40px;width:380px;max-width:92vw}
+.login-logo{font-size:20px;font-weight:700;text-align:center;margin-bottom:6px}
+.login-logo span{color:var(--blue)}
+.login-sub{font-size:13px;color:var(--text2);text-align:center;margin-bottom:28px}
+.lf{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.lf label{font-size:12px;color:var(--text2);font-weight:500}
+.lf input{height:42px;border:1px solid var(--border2);border-radius:8px;padding:0 13px;font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;outline:none}
+.lf input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(24,95,165,0.12)}
+.login-btn{width:100%;height:44px;background:var(--text);color:var(--bg);border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-top:6px;font-family:inherit}
+.login-btn:hover{opacity:.85}
+.login-err{font-size:12px;color:var(--red);text-align:center;margin-top:8px;min-height:18px}
 
--- 工单表（管理员创建，全局共享）
-create table work_orders (
-  id uuid primary key default gen_random_uuid(),
-  wo_no text not null unique,
-  model text not null,
-  total_qty integer not null default 0,
-  note text default '',
-  status text not null default 'active',
-  created_by uuid references users(id),
-  created_at timestamptz default now()
-);
+/* ── APP SHELL ── */
+.app{display:none}
+.topbar{background:var(--bg);border-bottom:1px solid var(--border);padding:0 18px;display:flex;align-items:center;gap:10px;height:50px;position:sticky;top:0;z-index:100}
+.logo{font-size:14px;font-weight:700}.logo span{color:var(--blue)}
+.nav{display:flex;gap:2px;margin-left:10px}
+.nb{padding:5px 11px;font-size:13px;border:none;background:none;cursor:pointer;color:var(--text2);border-radius:6px;font-family:inherit}
+.nb:hover{background:var(--bg2)}.nb.active{background:var(--bg3);color:var(--text);font-weight:500}
+.tr{margin-left:auto;display:flex;align-items:center;gap:8px}
+.upill{font-size:12px;color:var(--text2);background:var(--bg2);padding:3px 10px;border-radius:20px}
+.lout{font-size:12px;color:var(--red);background:none;border:none;cursor:pointer;font-family:inherit}
+.main{max-width:1200px;margin:0 auto;padding:18px}
 
--- 每日测试报告（每人每天每工单一条）
-create table daily_reports (
-  id uuid primary key default gen_random_uuid(),
-  work_order_id uuid not null references work_orders(id) on delete cascade,
-  wo_no text not null,
-  model text not null,
-  tester_id uuid not null references users(id),
-  tester_name text not null,
-  report_date date not null,
-  tested_qty integer not null default 0,
-  created_at timestamptz default now(),
-  unique(work_order_id, tester_id, report_date)
-);
+/* ── MOBILE UPLOAD PAGE ── */
+.mob-page{display:none;min-height:100vh;padding:24px 16px;max-width:480px;margin:0 auto}
+.mob-title{font-size:18px;font-weight:700;margin-bottom:4px}
+.mob-sub{font-size:13px;color:var(--text2);margin-bottom:20px}
+.mob-btn{width:100%;height:52px;font-size:15px;font-weight:500;border-radius:10px;border:1.5px solid var(--border2);background:var(--bg);color:var(--text);cursor:pointer;margin-bottom:10px;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px}
+.mob-btn.photo{border-color:var(--blue);color:var(--blue)}
+.mob-btn.video{border-color:var(--purple);color:var(--purple)}
+.mob-btn.audio{border-color:var(--teal);color:var(--teal)}
+.mob-btn.submit{background:var(--green);color:#fff;border-color:var(--green)}
+.mob-previews{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.mob-status{font-size:13px;color:var(--green);margin:8px 0;font-weight:500}
 
--- 不良品记录表
-create table defect_logs (
-  id uuid primary key default gen_random_uuid(),
-  work_order_id uuid not null references work_orders(id) on delete cascade,
-  wo_no text not null,
-  model text not null,
-  tester_id uuid not null references users(id),
-  tester_name text not null,
-  log_date date not null,
-  defect_type text not null,
-  defect_desc text default '',
-  root_cause text default '',
-  attachments jsonb default '[]',
-  created_at timestamptz default now()
-);
+/* ── COMMON ── */
+.card{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px}
+.toolbar{display:flex;gap:8px;padding:11px 13px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
+input,select,textarea{font-family:inherit;font-size:13px;border:1px solid var(--border2);border-radius:7px;background:var(--bg);color:var(--text);padding:0 10px;height:34px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(24,95,165,0.1)}
+textarea{height:68px;padding:8px 10px;resize:vertical}
+input.err{border-color:var(--red)}
+.btn{height:34px;padding:0 14px;font-size:13px;border-radius:7px;cursor:pointer;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-family:inherit}
+.btn:hover{background:var(--bg2)}
+.btn-primary{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:500}.btn-primary:hover{opacity:.85}
+.btn-sm{height:28px;padding:0 10px;font-size:12px}
+.btn-danger{color:var(--red);border-color:rgba(163,45,45,.3)}.btn-danger:hover{background:var(--redbg)}
+.btn-success{background:var(--green);color:#fff;border-color:var(--green)}.btn-success:hover{opacity:.88}
+.btn-blue{background:var(--blue);color:#fff;border-color:var(--blue)}.btn-blue:hover{opacity:.88}
+.spacer{flex:1}
 
--- RLS
-alter table users enable row level security;
-alter table work_orders enable row level security;
-alter table daily_reports enable row level security;
-alter table defect_logs enable row level security;
+/* ── STATS ── */
+.srow{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+.sc{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:13px 15px}
+.sl{font-size:12px;color:var(--text2);margin-bottom:5px}
+.sv{font-size:20px;font-weight:700}
+.sv.blue{color:var(--blue)}.sv.red{color:var(--red)}.sv.amber{color:var(--amber)}.sv.green{color:var(--green)}.sv.purple{color:var(--purple)}
+.prog{height:4px;background:var(--border);border-radius:2px;margin-top:5px;overflow:hidden}
+.pf{height:100%;background:var(--blue);border-radius:2px;transition:width .3s}
 
-create policy "open_users" on users for all to anon, authenticated using (true) with check (true);
-create policy "open_wo" on work_orders for all to anon, authenticated using (true) with check (true);
-create policy "open_daily" on daily_reports for all to anon, authenticated using (true) with check (true);
-create policy "open_defect" on defect_logs for all to anon, authenticated using (true) with check (true);
+/* ── TABLE ── */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:8px 12px;text-align:left;font-weight:500;color:var(--text2);font-size:12px;background:var(--bg2);border-bottom:1px solid var(--border)}
+td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg2)}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.b-red{background:var(--redbg);color:var(--red)}.b-purple{background:var(--purplebg);color:var(--purple)}
+.b-amber{background:var(--amberbg);color:var(--amber)}.b-blue{background:var(--bluebg);color:var(--blue)}
+.b-teal{background:var(--tealbg);color:var(--teal)}.b-gray{background:var(--bg3);color:var(--text2)}
+.b-green{background:var(--greenbg);color:var(--green)}
+.empty{text-align:center;padding:2.5rem;color:var(--text2);font-size:13px}
+.loading{text-align:center;padding:2rem;color:var(--text2);font-size:13px}
+.trow{display:flex;gap:4px;flex-wrap:wrap}
+.thumb{width:32px;height:32px;border-radius:5px;object-fit:cover;border:1px solid var(--border);cursor:pointer}
+.tfile{width:32px;height:32px;border-radius:5px;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text2);cursor:pointer}
 
-grant usage on schema public to anon, authenticated;
-grant all privileges on table users to anon, authenticated;
-grant all privileges on table work_orders to anon, authenticated;
-grant all privileges on table daily_reports to anon, authenticated;
-grant all privileges on table defect_logs to anon, authenticated;
+/* ── MODAL ── */
+.mwrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:flex-start;justify-content:center;padding:28px 14px;overflow-y:auto}
+.mwrap.open{display:flex}
+.modal{background:var(--bg);border-radius:12px;border:1px solid var(--border);padding:22px;width:580px;max-width:100%}
+.modal h2{font-size:15px;font-weight:600;margin-bottom:16px}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg.full{grid-column:1/-1}
+.fg label{font-size:12px;color:var(--text2)}
+.hint{font-size:11px;color:var(--text3);margin-left:3px}
+.errmsg{font-size:11px;color:var(--red);margin-top:1px}
+.mbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
 
--- 默认管理员
-insert into users (name, emp_id, password, dept, role)
-values ('管理员', 'admin', 'admin888', '管理部', 'admin');
+/* ── UPLOAD ── */
+.uzone{border:1.5px dashed var(--border2);border-radius:8px;padding:12px;text-align:center;cursor:pointer;font-size:13px;color:var(--text2)}
+.uzone:hover{background:var(--bg2)}
+.upreviews{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.upi{position:relative}
+.upi img,.upi video{width:68px;height:68px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block}
+.upi audio{width:150px;height:34px;border-radius:6px;display:block}
+.upi .upfile{width:68px;height:68px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;color:var(--text2);gap:2px}
+.uprm{position:absolute;top:-6px;right:-6px;width:16px;height:16px;background:var(--red);color:#fff;border-radius:50%;border:none;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center}
+
+/* ── QR MODAL ── */
+.qr-inner{background:var(--bg);border-radius:12px;border:1px solid var(--border);padding:24px;width:320px;max-width:100%;text-align:center}
+.qr-inner h2{font-size:15px;font-weight:600;margin-bottom:6px}
+.qr-inner p{font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.7}
+#qrbox{display:flex;justify-content:center;margin-bottom:14px}
+.qr-link{font-size:11px;color:var(--text3);word-break:break-all;padding:8px;background:var(--bg2);border-radius:6px;margin-bottom:14px;text-align:left}
+
+/* ── WO SELECTOR ── */
+.wo-selector{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;padding:13px}
+.wo-card{background:var(--bg);border:2px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:border-color .15s}
+.wo-card:hover{border-color:var(--blue)}
+.wo-card.sel{border-color:var(--blue);background:var(--bluebg)}
+.wo-no{font-size:14px;font-weight:700;margin-bottom:2px;font-family:monospace}
+.wo-mdl{font-size:12px;color:var(--text2);margin-bottom:8px}
+.wo-tag{font-size:12px;color:var(--text2)}
+
+/* ── DAILY PANEL ── */
+.dp{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px}
+.dp-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.dp-title{font-size:15px;font-weight:700}
+.dp-meta{font-size:12px;color:var(--text2)}
+
+/* ── REPORTS ── */
+.rgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:13px}
+.rc{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:15px}
+.rc h3{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:12px}
+.rc.full{grid-column:1/-1}
+.chwrap{position:relative;height:210px}
+.wotbl{width:100%;font-size:12px;border-collapse:collapse}
+.wotbl th{padding:6px 10px;background:var(--bg2);font-weight:500;color:var(--text2);border-bottom:1px solid var(--border)}
+.wotbl td{padding:6px 10px;border-bottom:1px solid var(--border)}
+.wotbl tr:last-child td{border-bottom:none}
+.mp{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:2px}
+.mpf{height:100%;border-radius:3px;background:var(--blue)}
+
+/* ── USERS ── */
+.ugrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:11px;padding:13px}
+.ucard{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:13px}
+.uch{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
+.av0{background:var(--bluebg);color:var(--blue)}.av1{background:var(--tealbg);color:var(--teal)}
+.av2{background:var(--amberbg);color:var(--amber)}.av3{background:var(--purplebg);color:var(--purple)}.av4{background:var(--redbg);color:var(--red)}
+.ucn{font-size:13px;font-weight:500}.ucm{font-size:11px;color:var(--text2)}
+.ucpw{font-size:11px;color:var(--text3);margin-top:3px;font-family:monospace}
+.ucact{display:flex;gap:5px;margin-top:9px}
+.role-admin{background:#1a1a1a;color:#fff}.role-dev{background:var(--purplebg);color:var(--purple)}
+.role-tester{background:var(--bluebg);color:var(--blue)}.role-qa{background:var(--tealbg);color:var(--teal)}
+
+/* ── PREVIEW ── */
+.pvwrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:300;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.pvwrap.open{display:flex}
+.pvwrap img{max-width:90vw;max-height:75vh;border-radius:8px}
+.pvwrap video{max-width:90vw;max-height:75vh;border-radius:8px}
+.pvclose{color:#fff;font-size:13px;cursor:pointer;padding:6px 18px;border:1px solid rgba(255,255,255,.35);border-radius:6px}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:18px;right:18px;background:#1a1a1a;color:#fff;padding:9px 15px;border-radius:8px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+@media(max-width:768px){
+  .srow{grid-template-columns:1fr 1fr}
+  .rgrid{grid-template-columns:1fr}.rc.full{grid-column:1}
+  .main{padding:12px}.fg2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN ═══ -->
+<div class="login-page" id="pg-login">
+  <div class="login-box">
+    <div class="login-logo">产品<span>测试</span>记录系统</div>
+    <div class="login-sub">请使用管理员分配的账号登录</div>
+    <div class="lf"><label>工号</label><input id="l-id" placeholder="请输入工号" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="lf"><label>密码</label><input type="password" id="l-pw" placeholder="请输入密码" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="login-btn" onclick="doLogin()">登 录</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- ═══ MOBILE UPLOAD PAGE ═══ -->
+<div class="mob-page" id="pg-mobile">
+  <div class="mob-title">📱 手机上传附件</div>
+  <div class="mob-sub" id="mob-info">请选择要上传的文件类型</div>
+  <button class="mob-btn photo" onclick="document.getElementById('mob-photo').click()">📷 拍照 / 选择图片</button>
+  <button class="mob-btn video" onclick="document.getElementById('mob-video').click()">🎬 录制 / 选择视频</button>
+  <button class="mob-btn audio" onclick="document.getElementById('mob-audio').click()">🎤 录音 / 选择音频</button>
+  <input type="file" id="mob-photo" multiple accept="image/*" capture="environment" style="display:none" onchange="mobHandleFiles(event,'image')">
+  <input type="file" id="mob-video" accept="video/*" capture="environment" style="display:none" onchange="mobHandleFiles(event,'video')">
+  <input type="file" id="mob-audio" accept="audio/*" capture="microphone" style="display:none" onchange="mobHandleFiles(event,'audio')">
+  <div class="mob-previews" id="mob-previews"></div>
+  <div class="mob-status" id="mob-status"></div>
+  <button class="mob-btn submit" id="mob-submit" style="display:none" onclick="mobSubmit()">✅ 确认上传完成，返回电脑</button>
+</div>
+
+<!-- ═══ MAIN APP ═══ -->
+<div class="app" id="pg-app">
+<div class="topbar">
+  <div class="logo">产品<span>测试</span>记录</div>
+  <div class="nav">
+    <button class="nb active" onclick="sp('work',this)">测试作业</button>
+    <button class="nb" onclick="sp('records',this)">记录查询</button>
+    <button class="nb" onclick="sp('reports',this)">报表</button>
+    <button class="nb" id="nav-wo" style="display:none" onclick="sp('womanage',this)">工单管理</button>
+    <button class="nb" id="nav-usr" style="display:none" onclick="sp('users',this)">用户管理</button>
+  </div>
+  <div class="tr">
+    <div class="upill" id="upill">—</div>
+    <button class="lout" onclick="doLogout()">退出</button>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- 测试作业 -->
+<div id="page-work">
+  <div style="font-size:13px;color:var(--text2);margin-bottom:10px;font-weight:500">请选择今日作业工单：</div>
+  <div class="card"><div id="wo-list"><div class="loading">加载工单中...</div></div></div>
+
+  <div id="work-panel" style="display:none">
+    <!-- 工单面板 -->
+    <div class="dp">
+      <div class="dp-head">
+        <div>
+          <div class="dp-title" id="dp-title">—</div>
+          <div class="dp-meta" id="dp-meta">—</div>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" onclick="openDailyModal()">📋 录入今日测试数量</button>
+        <button class="btn btn-success" onclick="openDefectModal(null)">＋ 录入不良品</button>
+      </div>
+      <div class="srow">
+        <div class="sc"><div class="sl">工单总量</div><div class="sv blue" id="dp-total">—</div></div>
+        <div class="sc"><div class="sl">累计已测</div><div class="sv green" id="dp-tested">—</div><div class="prog"><div class="pf" id="dp-prog" style="width:0%"></div></div></div>
+        <div class="sc"><div class="sl">剩余未测</div><div class="sv amber" id="dp-remain">—</div></div>
+        <div class="sc"><div class="sl">今日我的测试量</div><div class="sv" id="dp-today">未录入</div></div>
+        <div class="sc"><div class="sl">不良数 / 不良率</div><div class="sv red" id="dp-defect">— / —</div></div>
+      </div>
+    </div>
+
+    <!-- 不良记录 -->
+    <div class="card">
+      <div class="toolbar">
+        <span style="font-size:13px;font-weight:600">本工单不良记录</span>
+        <select id="df-filter" onchange="renderDefects()" style="width:130px">
+          <option value="">全部类型</option>
+          <option>功能异常</option><option>外观缺陷</option><option>性能不达标</option><option>兼容性问题</option><option>安全隐患</option><option>其他</option>
+        </select>
+        <div class="spacer"></div>
+      </div>
+      <div id="defect-table"><div class="loading">加载中...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 记录查询 -->
+<div id="page-records" style="display:none">
+  <div class="card">
+    <div class="toolbar">
+      <input type="text" id="rec-q" placeholder="搜索工单/型号/不良现象..." oninput="renderRecords()" style="width:220px">
+      <select id="rec-type" onchange="renderRecords()" style="width:130px">
+        <option value="">全部类型</option>
+        <option>功能异常</option><option>外观缺陷</option><option>性能不达标</option><option>兼容性问题</option><option>安全隐患</option><option>其他</option>
+      </select>
+      <input type="date" id="rec-date" onchange="renderRecords()" style="width:145px">
+      <div class="spacer"></div>
+      <span id="rec-scope" style="font-size:12px;color:var(--text2)"></span>
+    </div>
+    <div id="rec-table"><div class="loading">加载中...</div></div>
+  </div>
+</div>
+
+<!-- 报表 -->
+<div id="page-reports" style="display:none">
+  <div class="toolbar" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;margin-bottom:13px">
+    <label style="font-size:13px;color:var(--text2)">日期范围</label>
+    <input type="date" id="r-start" style="width:145px">
+    <span style="color:var(--text2);font-size:13px">至</span>
+    <input type="date" id="r-end" style="width:145px">
+    <button class="btn btn-primary" onclick="renderReports()">查询</button>
+    <div class="spacer"></div>
+    <span id="r-scope" style="font-size:12px;color:var(--text2)"></span>
+  </div>
+  <div class="rgrid">
+    <div class="rc"><h3>每日测试数量</h3><div class="chwrap"><canvas id="ch-daily"></canvas></div></div>
+    <div class="rc"><h3>不良类型分布</h3><div class="chwrap"><canvas id="ch-type"></canvas></div></div>
+    <div class="rc"><h3>各型号不良排行</h3><div class="chwrap"><canvas id="ch-model"></canvas></div></div>
+    <div class="rc"><h3>人员测试量统计</h3><div class="chwrap"><canvas id="ch-person"></canvas></div></div>
+    <div class="rc full"><h3>工单完成进度汇总</h3>
+      <div style="overflow-x:auto"><table class="wotbl" id="wo-prog-tbl"></table></div>
+    </div>
+  </div>
+</div>
+
+<!-- 工单管理 -->
+<div id="page-womanage" style="display:none">
+  <div class="card">
+    <div class="toolbar">
+      <input type="text" id="wom-q" placeholder="搜索工单号/型号..." oninput="renderWOMgmt()" style="width:200px">
+      <div class="spacer"></div>
+      <button class="btn btn-primary" onclick="openWOModal(null)">＋ 新建工单</button>
+    </div>
+    <div id="wo-mgmt-tbl"><div class="loading">加载中...</div></div>
+  </div>
+</div>
+
+<!-- 用户管理 -->
+<div id="page-users" style="display:none">
+  <div class="card">
+    <div class="toolbar">
+      <input type="text" id="usr-q" placeholder="搜索姓名/工号..." oninput="renderUsers()" style="width:200px">
+      <div class="spacer"></div>
+      <button class="btn btn-primary" onclick="openUserModal(null)">＋ 新增用户</button>
+    </div>
+    <div class="ugrid" id="ugrid"><div class="loading">加载中...</div></div>
+  </div>
+</div>
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ═══ MODALS ═══ -->
+
+<!-- 今日测试数量 -->
+<div class="mwrap" id="m-daily">
+<div class="modal" style="width:400px">
+  <h2>录入今日测试数量</h2>
+  <div class="fg2">
+    <div class="fg"><label>工单号</label><input id="dm-wo" disabled></div>
+    <div class="fg"><label>产品型号</label><input id="dm-model" disabled></div>
+    <div class="fg"><label>测试日期 *</label><input type="date" id="dm-date"></div>
+    <div class="fg"><label>今日测试总数（含良品+不良品）*</label><input type="number" id="dm-qty" placeholder="如 200" min="1"></div>
+  </div>
+  <div style="font-size:12px;color:var(--text2);margin-bottom:10px;padding:8px;background:var(--bg2);border-radius:6px">
+    💡 若今日已录入过，再次提交将覆盖当天数量
+  </div>
+  <div class="mbtns">
+    <button class="btn" onclick="closeMod('m-daily')">取消</button>
+    <button class="btn btn-primary" id="dm-btn" onclick="saveDailyReport()">保存</button>
+  </div>
+</div>
+</div>
+
+<!-- 不良品录入 -->
+<div class="mwrap" id="m-defect">
+<div class="modal">
+  <h2 id="defect-title">录入不良品</h2>
+  <div class="fg2">
+    <div class="fg"><label>工单号</label><input id="dfm-wo" disabled></div>
+    <div class="fg"><label>产品型号</label><input id="dfm-model" disabled></div>
+    <div class="fg"><label>发现日期 *</label><input type="date" id="dfm-date"></div>
+    <div class="fg"><label>不良类型 *</label>
+      <select id="dfm-type">
+        <option>功能异常</option><option>外观缺陷</option><option>性能不达标</option><option>兼容性问题</option><option>安全隐患</option><option>其他</option>
+      </select>
+    </div>
+    <div class="fg full"><label>不良现象描述 *</label><textarea id="dfm-desc" placeholder="详细描述不良现象..."></textarea></div>
+    <div class="fg full"><label>研发 Root Cause <span class="hint">（选填，研发工程师填写）</span></label><textarea id="dfm-rc" placeholder="根本原因分析..."></textarea></div>
+    <div class="fg full">
+      <label>附件 <span class="hint">（照片 / 视频 / 录音）</span></label>
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="document.getElementById('file-inp').click()">💻 本机上传</button>
+        <button class="btn btn-sm btn-blue" onclick="showQR()">📱 手机扫码上传</button>
+      </div>
+      <input type="file" id="file-inp" multiple accept="image/*,video/*,audio/*,.pdf" style="display:none" onchange="handleFiles(event)">
+      <div class="upreviews" id="upreviews"></div>
+    </div>
+  </div>
+  <div class="mbtns">
+    <button class="btn" onclick="closeMod('m-defect')">取消</button>
+    <button class="btn btn-primary" id="dfm-btn" onclick="saveDefect()">保存</button>
+  </div>
+</div>
+</div>
+
+<!-- 工单管理 -->
+<div class="mwrap" id="m-wo">
+<div class="modal" style="width:420px">
+  <h2 id="wo-mod-title">新建工单</h2>
+  <div class="fg2">
+    <div class="fg"><label>工单号 * <span class="hint">M+6位数字</span></label>
+      <input id="wm-no" placeholder="如 M880001" maxlength="7" oninput="vWONo()">
+      <span class="errmsg" id="err-wno" style="display:none">格式：M+6位数字</span>
+    </div>
+    <div class="fg"><label>产品型号 * <span class="hint">≤9位字母+数字</span></label>
+      <input id="wm-model" placeholder="如 B01" maxlength="9" oninput="vWOModel()">
+      <span class="errmsg" id="err-wmdl" style="display:none">仅字母+数字，≤9位</span>
+    </div>
+    <div class="fg"><label>工单总数量 *</label><input type="number" id="wm-qty" placeholder="如 2000" min="1"></div>
+    <div class="fg"><label>状态</label>
+      <select id="wm-status"><option value="active">进行中</option><option value="done">已完成</option></select>
+    </div>
+    <div class="fg full"><label>备注</label><input id="wm-note" placeholder="可选"></div>
+  </div>
+  <div class="mbtns">
+    <button class="btn" onclick="closeMod('m-wo')">取消</button>
+    <button class="btn btn-primary" onclick="saveWO()">保存</button>
+  </div>
+</div>
+</div>
+
+<!-- 用户 -->
+<div class="mwrap" id="m-user">
+<div class="modal" style="width:420px">
+  <h2 id="usr-mod-title">新增用户</h2>
+  <div class="fg2">
+    <div class="fg"><label>姓名 *</label><input id="um-name" placeholder="请输入姓名"></div>
+    <div class="fg"><label>工号 *</label><input id="um-eid" placeholder="如 EMP001"></div>
+    <div class="fg"><label>登录密码 *</label><input id="um-pw" value="123456"></div>
+    <div class="fg"><label>部门</label>
+      <select id="um-dept"><option>测试部</option><option>研发部</option><option>生产部</option><option>品质部</option><option>管理部</option><option>其他</option></select>
+    </div>
+    <div class="fg"><label>角色</label>
+      <select id="um-role"><option value="tester">测试员</option><option value="dev">研发工程师</option><option value="qa">品质工程师</option><option value="admin">管理员</option></select>
+    </div>
+    <div class="fg full"><label>备注</label><input id="um-note" placeholder="可选"></div>
+  </div>
+  <div class="mbtns">
+    <button class="btn" onclick="closeMod('m-user')">取消</button>
+    <button class="btn btn-primary" onclick="saveUser()">保存</button>
+  </div>
+</div>
+</div>
+
+<!-- QR码弹窗 -->
+<div class="mwrap" id="m-qr">
+<div class="qr-inner">
+  <h2>📱 手机扫码上传</h2>
+  <p>使用微信或手机浏览器扫描下方二维码<br>在手机上直接拍照、录音、录视频上传<br>上传完成后回到此页面点击"刷新附件"</p>
+  <div id="qrbox"></div>
+  <div class="qr-link" id="qr-link"></div>
+  <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+    <button class="btn btn-primary" onclick="refreshFromMobile()">🔄 刷新附件</button>
+    <button class="btn" onclick="closeMod('m-qr')">关闭</button>
+  </div>
+</div>
+</div>
+
+<!-- 预览 -->
+<div class="pvwrap" id="pvwrap">
+  <div id="pvcontent"></div>
+  <div class="pvclose" onclick="document.getElementById('pvwrap').classList.remove('open')">关闭预览</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SURL='https://zrwfpakmzdqhphdcdkzo.supabase.co';
+const SKEY='sb_publishable_Ut3TIDztI5-QYRAK4fjOVA_4e14FsV3';
+const {createClient}=supabase;
+const db=createClient(SURL,SKEY);
+
+let CU=null;
+let WOs=[],defects=[],dailyRpts=[],users=[];
+let selWO=null;
+let editDefId=null,editWOId=null,editUsrId=null;
+let pendingFiles=[];
+let charts={};
+let mobFiles=[];          // shared between mobile and desktop via sessionStorage key
+const MOB_KEY='mob_uploads';
+
+const roleLabel={admin:'管理员',dev:'研发工程师',tester:'测试员',qa:'品质工程师'};
+const roleClass={admin:'role-admin',dev:'role-dev',tester:'role-tester',qa:'role-qa'};
+const defBadge={'功能异常':'b-red','外观缺陷':'b-purple','性能不达标':'b-amber','兼容性问题':'b-blue','安全隐患':'b-red','其他':'b-gray'};
+
+// ─── UTILS ───
+function toast(msg,dur=2600){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),dur);}
+function openMod(id){document.getElementById(id).classList.add('open');}
+function closeMod(id){document.getElementById(id).classList.remove('open');}
+function today(){return new Date().toISOString().slice(0,10);}
+
+// ─── BOOT ───
+window.addEventListener('DOMContentLoaded',()=>{
+  const p=new URLSearchParams(location.search);
+  if(p.get('upload')==='1'){
+    showMobilePage(p.get('wo'),p.get('model'),p.get('sid'));
+    return;
+  }
+  const saved=sessionStorage.getItem('cu');
+  if(saved){try{CU=JSON.parse(saved);launchApp();}catch{}}
+});
+
+// ─── LOGIN ───
+async function doLogin(){
+  const eid=document.getElementById('l-id').value.trim();
+  const pw=document.getElementById('l-pw').value;
+  document.getElementById('login-err').textContent='';
+  if(!eid||!pw){document.getElementById('login-err').textContent='请输入工号和密码';return;}
+  const{data,error}=await db.from('users').select('*').eq('emp_id',eid).eq('password',pw).single();
+  if(error||!data){document.getElementById('login-err').textContent='工号或密码错误';return;}
+  CU=data;sessionStorage.setItem('cu',JSON.stringify(data));launchApp();
+}
+function doLogout(){
+  CU=null;sessionStorage.removeItem('cu');
+  document.getElementById('pg-login').style.display='flex';
+  document.getElementById('pg-app').style.display='none';
+  document.getElementById('l-id').value='';document.getElementById('l-pw').value='';
+}
+
+function launchApp(){
+  document.getElementById('pg-login').style.display='none';
+  document.getElementById('pg-app').style.display='block';
+  document.getElementById('upill').textContent=CU.name+' · '+(roleLabel[CU.role]||CU.role);
+  const isAdmin=CU.role==='admin';
+  document.getElementById('nav-wo').style.display=isAdmin?'':'none';
+  document.getElementById('nav-usr').style.display=isAdmin?'':'none';
+  initRptDates();
+  loadAll();
+}
+
+// ─── PAGE SWITCH ───
+function sp(p,btn){
+  ['work','records','reports','womanage','users'].forEach(id=>{
+    const el=document.getElementById('page-'+id);
+    if(el) el.style.display=id===p?'':'none';
+  });
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(p==='records'){loadAllDefects().then(renderRecords);}
+  if(p==='reports') renderReports();
+  if(p==='womanage') renderWOMgmt();
+  if(p==='users') renderUsers();
+}
+
+// ─── LOAD ───
+async function loadAll(){
+  await Promise.all([loadWOs(),loadUsers()]);
+  renderWOSelector();
+}
+async function loadWOs(){
+  const{data}=await db.from('work_orders').select('*').order('created_at',{ascending:false});
+  WOs=data||[];
+}
+async function loadUsers(){
+  const{data}=await db.from('users').select('*').order('created_at');
+  users=data||[];
+}
+async function loadDefectsForWO(woId){
+  const{data}=await db.from('defect_logs').select('*').eq('work_order_id',woId).order('created_at',{ascending:false});
+  defects=data||[];
+}
+async function loadDailyForWO(woId){
+  const{data}=await db.from('daily_reports').select('*').eq('work_order_id',woId);
+  dailyRpts=data||[];
+}
+async function loadAllDefects(){
+  const isPriv=CU.role==='admin'||CU.role==='dev';
+  let q=db.from('defect_logs').select('*').order('created_at',{ascending:false});
+  if(!isPriv) q=q.eq('tester_id',CU.id);
+  const{data}=await q;defects=data||[];
+}
+
+// ─── WO SELECTOR ───
+function renderWOSelector(){
+  const active=WOs.filter(w=>w.status==='active');
+  const el=document.getElementById('wo-list');
+  if(!active.length){el.innerHTML='<div class="empty">暂无进行中工单，请管理员在「工单管理」中创建</div>';return;}
+  el.innerHTML='<div class="wo-selector">'+active.map(w=>`
+    <div class="wo-card${selWO&&selWO.id===w.id?' sel':''}" onclick="selectWO('${w.id}')">
+      <div class="wo-no">${w.wo_no}</div>
+      <div class="wo-mdl">型号：${w.model}</div>
+      <div class="wo-tag">工单数量：<b>${w.total_qty}</b> pcs</div>
+      ${w.note?`<div class="wo-tag" style="margin-top:3px;color:var(--text2)">${w.note}</div>`:''}
+    </div>`).join('')+'</div>';
+}
+
+async function selectWO(id){
+  selWO=WOs.find(w=>w.id===id);
+  if(!selWO) return;
+  renderWOSelector();
+  document.getElementById('work-panel').style.display='';
+  document.getElementById('dp-title').textContent=selWO.wo_no+' · '+selWO.model;
+  document.getElementById('dp-meta').textContent='工单总量：'+selWO.total_qty+' pcs';
+  await Promise.all([loadDefectsForWO(selWO.id),loadDailyForWO(selWO.id)]);
+  renderWorkPanel();renderDefects();
+}
+
+function renderWorkPanel(){
+  if(!selWO) return;
+  const totalTested=dailyRpts.reduce((a,b)=>a+b.tested_qty,0);
+  const remain=Math.max(0,selWO.total_qty-totalTested);
+  const myToday=dailyRpts.filter(r=>r.tester_id===CU.id&&r.report_date===today()).reduce((a,b)=>a+b.tested_qty,0);
+  const defCount=defects.length;
+  const defRate=totalTested>0?(defCount/totalTested*100).toFixed(2)+'%':'—';
+  const pct=selWO.total_qty>0?Math.min(100,Math.round(totalTested/selWO.total_qty*100)):0;
+  document.getElementById('dp-total').textContent=selWO.total_qty;
+  document.getElementById('dp-tested').textContent=totalTested+' / '+selWO.total_qty;
+  document.getElementById('dp-prog').style.width=pct+'%';
+  document.getElementById('dp-remain').textContent=remain;
+  document.getElementById('dp-today').textContent=myToday?myToday+' pcs':'未录入';
+  document.getElementById('dp-defect').textContent=defCount+' / '+defRate;
+}
+
+function renderDefects(){
+  const ft=document.getElementById('df-filter').value;
+  const list=defects.filter(d=>!ft||d.defect_type===ft);
+  const el=document.getElementById('defect-table');
+  if(!list.length){el.innerHTML='<div class="empty">暂无不良记录</div>';return;}
+  const isPriv=CU.role==='admin'||CU.role==='dev';
+  el.innerHTML=`<div style="overflow-x:auto"><table>
+    <thead><tr>
+      <th style="width:90px">日期</th><th style="width:100px">不良类型</th>
+      <th>不良现象</th><th>Root Cause</th>
+      <th style="width:68px">附件</th>
+      ${isPriv?'<th style="width:72px">测试员</th>':''}
+      <th style="width:88px"></th>
+    </tr></thead>
+    <tbody>${list.map(d=>{
+      const files=d.attachments||[];
+      const thumbs=buildThumbs(files);
+      const canEdit=CU.role==='admin'||CU.role==='dev'||d.tester_id===CU.id;
+      return `<tr>
+        <td style="font-size:12px;color:var(--text2)">${d.log_date}</td>
+        <td><span class="badge ${defBadge[d.defect_type]||'b-gray'}">${d.defect_type}</span></td>
+        <td style="font-size:12px;color:var(--text2);max-width:180px">${d.defect_desc||'—'}</td>
+        <td style="font-size:12px;color:var(--text2);max-width:160px">${d.root_cause||'<span style="color:var(--text3);font-style:italic">待填写</span>'}</td>
+        <td><div class="trow">${thumbs}</div></td>
+        ${isPriv?`<td style="font-size:12px;color:var(--text2)">${d.tester_name}</td>`:''}
+        <td>${canEdit?`<button class="btn btn-sm" onclick="openDefectModal('${d.id}')" style="margin-bottom:3px;width:100%">编辑</button><button class="btn btn-sm btn-danger" onclick="delDefect('${d.id}')" style="width:100%">删除</button>`:''}</td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
+function buildThumbs(files){
+  if(!files.length) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  return files.map(f=>{
+    if(f.type==='image') return `<img class="thumb" src="${f.url}" onclick="pvFile('${f.url}','image')">`;
+    if(f.type==='video') return `<div class="tfile" onclick="pvFile('${f.url}','video')" style="font-size:12px">▶</div>`;
+    if(f.type==='audio') return `<div class="tfile" onclick="pvFile('${f.url}','audio')">🎵</div>`;
+    return `<div class="tfile">${(f.ext||'').slice(0,3)}</div>`;
+  }).join('');
+}
+
+// ─── DAILY REPORT ───
+function openDailyModal(){
+  if(!selWO){toast('请先选择工单');return;}
+  document.getElementById('dm-wo').value=selWO.wo_no;
+  document.getElementById('dm-model').value=selWO.model;
+  document.getElementById('dm-date').value=today();
+  const exist=dailyRpts.find(r=>r.tester_id===CU.id&&r.report_date===today());
+  document.getElementById('dm-qty').value=exist?exist.tested_qty:'';
+  openMod('m-daily');
+}
+async function saveDailyReport(){
+  const qty=parseInt(document.getElementById('dm-qty').value)||0;
+  const dt=document.getElementById('dm-date').value;
+  if(!qty||!dt){toast('请填写测试数量');return;}
+  const btn=document.getElementById('dm-btn');btn.textContent='保存中...';btn.disabled=true;
+  const exist=dailyRpts.find(r=>r.tester_id===CU.id&&r.report_date===dt);
+  let error;
+  if(exist){({error}=await db.from('daily_reports').update({tested_qty:qty}).eq('id',exist.id));}
+  else{({error}=await db.from('daily_reports').insert({work_order_id:selWO.id,wo_no:selWO.wo_no,model:selWO.model,tester_id:CU.id,tester_name:CU.name,report_date:dt,tested_qty:qty}));}
+  btn.textContent='保存';btn.disabled=false;
+  if(error){toast('保存失败：'+error.message);return;}
+  toast('测试数量已保存');closeMod('m-daily');
+  await loadDailyForWO(selWO.id);renderWorkPanel();
+}
+
+// ─── DEFECT ───
+function openDefectModal(id){
+  editDefId=id;pendingFiles=[];
+  const d=id?defects.find(x=>x.id===id):null;
+  document.getElementById('defect-title').textContent=d?'编辑不良记录':'录入不良品';
+  if(!d&&!selWO){toast('请先选择工单');return;}
+  const wo=d?{wo_no:d.wo_no,model:d.model}:selWO;
+  document.getElementById('dfm-wo').value=wo.wo_no;
+  document.getElementById('dfm-model').value=wo.model;
+  document.getElementById('dfm-date').value=d?d.log_date:today();
+  document.getElementById('dfm-type').value=d?d.defect_type:'功能异常';
+  document.getElementById('dfm-desc').value=d?d.defect_desc:'';
+  document.getElementById('dfm-rc').value=d?d.root_cause:'';
+  if(d) pendingFiles=[...(d.attachments||[])];
+  // merge any mobile uploads
+  try{const mob=JSON.parse(sessionStorage.getItem(MOB_KEY)||'[]');if(mob.length){pendingFiles=[...pendingFiles,...mob];sessionStorage.removeItem(MOB_KEY);toast('已载入手机上传的'+mob.length+'个文件');}}catch{}
+  renderUPreviews();openMod('m-defect');
+}
+function handleFiles(e){
+  Array.from(e.target.files).forEach(f=>{
+    const url=URL.createObjectURL(f);
+    const ext=f.name.split('.').pop().toUpperCase();
+    let type='file';
+    if(f.type.startsWith('image/')) type='image';
+    else if(f.type.startsWith('video/')) type='video';
+    else if(f.type.startsWith('audio/')) type='audio';
+    pendingFiles.push({name:f.name,url,type,ext});
+  });
+  renderUPreviews();e.target.value='';
+}
+function renderUPreviews(){
+  document.getElementById('upreviews').innerHTML=pendingFiles.map((f,i)=>{
+    let inner='';
+    if(f.type==='image') inner=`<img src="${f.url}" style="width:68px;height:68px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block">`;
+    else if(f.type==='video') inner=`<video src="${f.url}" muted style="width:68px;height:68px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block"></video>`;
+    else if(f.type==='audio') inner=`<audio src="${f.url}" controls style="width:150px;height:34px;border-radius:6px;display:block"></audio>`;
+    else inner=`<div class="upfile" style="width:68px;height:68px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;color:var(--text2)"><span style="font-size:18px">📄</span><span>${f.ext}</span></div>`;
+    return `<div class="upi">${inner}<button class="uprm" onclick="rmFile(${i})">✕</button></div>`;
+  }).join('');
+}
+function rmFile(i){pendingFiles.splice(i,1);renderUPreviews();}
+function refreshFromMobile(){
+  try{
+    const mob=JSON.parse(sessionStorage.getItem(MOB_KEY)||'[]');
+    if(mob.length){pendingFiles=[...pendingFiles,...mob];sessionStorage.removeItem(MOB_KEY);renderUPreviews();toast('已载入'+mob.length+'个文件');}
+    else{toast('暂无手机上传的文件，请先在手机完成上传');}
+  }catch{toast('读取失败');}
+}
+async function saveDefect(){
+  const defect_type=document.getElementById('dfm-type').value;
+  const defect_desc=document.getElementById('dfm-desc').value.trim();
+  const root_cause=document.getElementById('dfm-rc').value.trim();
+  const log_date=document.getElementById('dfm-date').value;
+  if(!defect_desc||!log_date){toast('请填写不良现象和日期');return;}
+  const btn=document.getElementById('dfm-btn');btn.textContent='保存中...';btn.disabled=true;
+  const curWO=selWO||(editDefId?{id:defects.find(x=>x.id===editDefId)?.work_order_id,wo_no:document.getElementById('dfm-wo').value,model:document.getElementById('dfm-model').value}:null);
+  const payload={work_order_id:curWO.id||curWO.work_order_id,wo_no:document.getElementById('dfm-wo').value,model:document.getElementById('dfm-model').value,tester_id:CU.id,tester_name:CU.name,log_date,defect_type,defect_desc,root_cause,attachments:pendingFiles};
+  let error;
+  if(editDefId){({error}=await db.from('defect_logs').update(payload).eq('id',editDefId));}
+  else{({error}=await db.from('defect_logs').insert(payload));}
+  btn.textContent='保存';btn.disabled=false;
+  if(error){toast('保存失败：'+error.message);return;}
+  toast(editDefId?'记录已更新':'不良品已录入');closeMod('m-defect');
+  if(selWO){await loadDefectsForWO(selWO.id);renderDefects();renderWorkPanel();}
+}
+async function delDefect(id){
+  if(!confirm('确认删除？'))return;
+  await db.from('defect_logs').delete().eq('id',id);
+  toast('已删除');
+  if(selWO){await loadDefectsForWO(selWO.id);renderDefects();renderWorkPanel();}
+}
+
+// ─── QR CODE ───
+function showQR(){
+  const sid='mob_'+Date.now();
+  const base=location.origin+location.pathname;
+  const url=`${base}?upload=1&wo=${encodeURIComponent(selWO?selWO.wo_no:'')}&model=${encodeURIComponent(selWO?selWO.model:'')}&sid=${sid}`;
+  sessionStorage.setItem('mob_sid',sid);
+  document.getElementById('qr-link').textContent=url;
+  document.getElementById('qrbox').innerHTML='';
+  new QRCode(document.getElementById('qrbox'),{text:url,width:180,height:180,colorDark:'#1a1a1a',colorLight:'#fff'});
+  openMod('m-qr');
+}
+
+// ─── MOBILE PAGE ───
+function showMobilePage(wo,model,sid){
+  document.getElementById('pg-login').style.display='none';
+  document.getElementById('pg-app').style.display='none';
+  document.getElementById('pg-mobile').style.display='block';
+  document.getElementById('mob-info').textContent=(wo?'工单：'+decodeURIComponent(wo):'')+(model?' · 型号：'+decodeURIComponent(model):'');
+  window._mobSid=sid;
+}
+function mobHandleFiles(e,type){
+  Array.from(e.target.files).forEach(f=>{
+    const url=URL.createObjectURL(f);
+    const ext=f.name.split('.').pop().toUpperCase();
+    mobFiles.push({name:f.name,url,type,ext});
+    const prev=document.getElementById('mob-previews');
+    let el='';
+    if(type==='image') el=`<img src="${url}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid #ddd">`;
+    else if(type==='video') el=`<video src="${url}" controls style="width:140px;height:90px;border-radius:8px;border:1px solid #ddd"></video>`;
+    else el=`<audio src="${url}" controls style="width:200px;height:36px;border-radius:6px"></audio>`;
+    prev.innerHTML+=`<div>${el}</div>`;
+  });
+  document.getElementById('mob-status').textContent='已选择 '+mobFiles.length+' 个文件';
+  document.getElementById('mob-submit').style.display='block';
+  e.target.value='';
+}
+function mobSubmit(){
+  // Store in sessionStorage so desktop can pick up
+  try{
+    const sid=window._mobSid||'shared';
+    sessionStorage.setItem(MOB_KEY,JSON.stringify(mobFiles));
+    document.getElementById('mob-status').textContent='✅ 上传完成！请回到电脑端点击"刷新附件"';
+    document.getElementById('mob-submit').style.display='none';
+  }catch{document.getElementById('mob-status').textContent='存储失败，请重试';}
+}
+
+// ─── RECORDS PAGE ───
+function renderRecords(){
+  const q=document.getElementById('rec-q').value.toLowerCase();
+  const ft=document.getElementById('rec-type').value;
+  const fd=document.getElementById('rec-date').value;
+  const isPriv=CU.role==='admin'||CU.role==='dev';
+  document.getElementById('rec-scope').textContent=isPriv?'全部人员':'我的记录';
+  const list=defects.filter(d=>(!q||d.wo_no.toLowerCase().includes(q)||d.model.toLowerCase().includes(q)||(d.defect_desc||'').toLowerCase().includes(q))&&(!ft||d.defect_type===ft)&&(!fd||d.log_date===fd));
+  const el=document.getElementById('rec-table');
+  if(!list.length){el.innerHTML='<div class="empty">暂无记录</div>';return;}
+  el.innerHTML=`<div style="overflow-x:auto"><table>
+    <thead><tr>
+      <th style="width:95px">工单号</th><th style="width:80px">型号</th>
+      <th style="width:90px">日期</th><th style="width:100px">不良类型</th>
+      <th>不良现象</th><th>Root Cause</th>
+      <th style="width:68px">附件</th>
+      ${isPriv?'<th style="width:72px">测试员</th>':''}
+      <th style="width:88px"></th>
+    </tr></thead>
+    <tbody>${list.map(d=>{
+      const thumbs=buildThumbs(d.attachments||[]);
+      const canEdit=CU.role==='admin'||CU.role==='dev'||d.tester_id===CU.id;
+      return `<tr>
+        <td style="font-family:monospace;font-size:12px">${d.wo_no}</td>
+        <td style="font-weight:600">${d.model}</td>
+        <td style="font-size:12px;color:var(--text2)">${d.log_date}</td>
+        <td><span class="badge ${defBadge[d.defect_type]||'b-gray'}">${d.defect_type}</span></td>
+        <td style="font-size:12px;color:var(--text2);max-width:180px">${d.defect_desc||'—'}</td>
+        <td style="font-size:12px;color:var(--text2);max-width:160px">${d.root_cause||'<span style="color:var(--text3);font-style:italic">待填写</span>'}</td>
+        <td><div class="trow">${thumbs}</div></td>
+        ${isPriv?`<td style="font-size:12px;color:var(--text2)">${d.tester_name}</td>`:''}
+        <td>${canEdit?`<button class="btn btn-sm" onclick="recEditDef('${d.id}')" style="margin-bottom:3px;width:100%">编辑</button><button class="btn btn-sm btn-danger" onclick="recDelDef('${d.id}')" style="width:100%">删除</button>`:''}</td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+function recEditDef(id){
+  const d=defects.find(x=>x.id===id);if(!d)return;
+  selWO=WOs.find(w=>w.id===d.work_order_id)||{id:d.work_order_id,wo_no:d.wo_no,model:d.model};
+  openDefectModal(id);
+}
+async function recDelDef(id){
+  if(!confirm('确认删除？'))return;
+  await db.from('defect_logs').delete().eq('id',id);
+  toast('已删除');await loadAllDefects();renderRecords();
+}
+
+// ─── WO MANAGEMENT ───
+function renderWOMgmt(){
+  const q=document.getElementById('wom-q').value.toLowerCase();
+  const list=WOs.filter(w=>w.wo_no.toLowerCase().includes(q)||w.model.toLowerCase().includes(q));
+  const el=document.getElementById('wo-mgmt-tbl');
+  if(!list.length){el.innerHTML='<div class="empty">暂无工单</div>';return;}
+  el.innerHTML=`<div style="overflow-x:auto"><table>
+    <thead><tr>
+      <th style="width:110px">工单号</th><th style="width:100px">产品型号</th>
+      <th style="width:100px">总数量</th><th style="width:80px">状态</th>
+      <th>备注</th><th style="width:95px"></th>
+    </tr></thead>
+    <tbody>${list.map(w=>`<tr>
+      <td style="font-family:monospace;font-weight:700">${w.wo_no}</td>
+      <td>${w.model}</td><td>${w.total_qty} pcs</td>
+      <td><span class="badge ${w.status==='active'?'b-green':'b-gray'}">${w.status==='active'?'进行中':'已完成'}</span></td>
+      <td style="font-size:12px;color:var(--text2)">${w.note||'—'}</td>
+      <td>
+        <button class="btn btn-sm" onclick="openWOModal('${w.id}')" style="margin-bottom:3px;width:100%">编辑</button>
+        <button class="btn btn-sm btn-danger" onclick="delWO('${w.id}')" style="width:100%">删除</button>
+      </td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+function vWONo(){const v=document.getElementById('wm-no').value;const ok=/^M\d{6}$/.test(v);document.getElementById('err-wno').style.display=v&&!ok?'block':'none';document.getElementById('wm-no').classList.toggle('err',v&&!ok);}
+function vWOModel(){const v=document.getElementById('wm-model').value;const ok=/^[A-Za-z0-9]{1,9}$/.test(v);document.getElementById('err-wmdl').style.display=v&&!ok?'block':'none';document.getElementById('wm-model').classList.toggle('err',v&&!ok);}
+function openWOModal(id){
+  editWOId=id;
+  const w=id?WOs.find(x=>x.id===id):null;
+  document.getElementById('wo-mod-title').textContent=w?'编辑工单':'新建工单';
+  document.getElementById('wm-no').value=w?w.wo_no:'';
+  document.getElementById('wm-model').value=w?w.model:'';
+  document.getElementById('wm-qty').value=w?w.total_qty:'';
+  document.getElementById('wm-status').value=w?w.status:'active';
+  document.getElementById('wm-note').value=w?w.note||'':'';
+  openMod('m-wo');
+}
+async function saveWO(){
+  const wo_no=document.getElementById('wm-no').value.trim();
+  const model=document.getElementById('wm-model').value.trim();
+  const total_qty=parseInt(document.getElementById('wm-qty').value)||0;
+  const status=document.getElementById('wm-status').value;
+  const note=document.getElementById('wm-note').value.trim();
+  if(!wo_no||!model||!total_qty){toast('请填写必填项');return;}
+  if(!/^M\d{6}$/.test(wo_no)){toast('工单号格式错误');return;}
+  if(!/^[A-Za-z0-9]{1,9}$/.test(model)){toast('型号格式错误');return;}
+  const payload={wo_no,model,total_qty,status,note,created_by:CU.id};
+  let error;
+  if(editWOId){({error}=await db.from('work_orders').update(payload).eq('id',editWOId));}
+  else{({error}=await db.from('work_orders').insert(payload));}
+  if(error){toast('保存失败：'+(error.message.includes('unique')?'工单号已存在':error.message));return;}
+  toast(editWOId?'工单已更新':'工单已创建');closeMod('m-wo');
+  await loadWOs();renderWOMgmt();renderWOSelector();
+}
+async function delWO(id){
+  if(!confirm('删除工单会同时删除所有相关记录，确认吗？'))return;
+  await db.from('work_orders').delete().eq('id',id);
+  toast('已删除');await loadWOs();renderWOMgmt();renderWOSelector();
+  if(selWO&&selWO.id===id){selWO=null;document.getElementById('work-panel').style.display='none';}
+}
+
+// ─── USERS ───
+function renderUsers(){
+  const q=document.getElementById('usr-q').value.toLowerCase();
+  const avC=['av0','av1','av2','av3','av4'];
+  const list=users.filter(u=>u.name.toLowerCase().includes(q)||u.emp_id.toLowerCase().includes(q));
+  const grid=document.getElementById('ugrid');
+  if(!list.length){grid.innerHTML='<div style="color:var(--text2);font-size:13px;padding:1rem">暂无用户</div>';return;}
+  grid.innerHTML=list.map((u,i)=>`<div class="ucard">
+    <div class="uch"><div class="av ${avC[i%5]}">${u.name.slice(0,2)}</div>
+    <div><div class="ucn">${u.name}</div><div class="ucm">${u.emp_id} · ${u.dept}</div></div></div>
+    <span class="badge ${roleClass[u.role]||'b-gray'}">${roleLabel[u.role]||u.role}</span>
+    <div class="ucpw">密码：${u.password}</div>
+    ${u.note?`<div style="font-size:11px;color:var(--text2);margin-top:4px">${u.note}</div>`:''}
+    <div class="ucact">
+      <button class="btn btn-sm" onclick="openUserModal('${u.id}')">编辑</button>
+      <button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')">删除</button>
+    </div></div>`).join('');
+}
+function openUserModal(id){
+  editUsrId=id;
+  const u=id?users.find(x=>x.id===id):null;
+  document.getElementById('usr-mod-title').textContent=u?'编辑用户':'新增用户';
+  document.getElementById('um-name').value=u?u.name:'';
+  document.getElementById('um-eid').value=u?u.emp_id:'';
+  document.getElementById('um-pw').value=u?u.password:'123456';
+  document.getElementById('um-dept').value=u?u.dept:'测试部';
+  document.getElementById('um-role').value=u?u.role:'tester';
+  document.getElementById('um-note').value=u?u.note||'':'';
+  openMod('m-user');
+}
+async function saveUser(){
+  const name=document.getElementById('um-name').value.trim();
+  const emp_id=document.getElementById('um-eid').value.trim();
+  const password=document.getElementById('um-pw').value.trim();
+  const dept=document.getElementById('um-dept').value;
+  const role=document.getElementById('um-role').value;
+  const note=document.getElementById('um-note').value.trim();
+  if(!name||!emp_id||!password){toast('姓名、工号、密码为必填项');return;}
+  const payload={name,emp_id,password,dept,role,note};
+  let error;
+  if(editUsrId){({error}=await db.from('users').update(payload).eq('id',editUsrId));}
+  else{({error}=await db.from('users').insert(payload));}
+  if(error){toast('保存失败：'+(error.message.includes('unique')?'工号已存在':error.message));return;}
+  toast(editUsrId?'用户已更新':'用户已添加');closeMod('m-user');await loadUsers();renderUsers();
+}
+async function delUser(id){
+  if(id===CU.id){toast('不能删除自己的账号');return;}
+  if(!confirm('确认删除？'))return;
+  await db.from('users').delete().eq('id',id);
+  toast('已删除');await loadUsers();renderUsers();
+}
+
+// ─── REPORTS ───
+function initRptDates(){
+  const now=new Date();const y=now.getFullYear(),m=now.getMonth();
+  document.getElementById('r-start').value=new Date(y,m,1).toISOString().slice(0,10);
+  document.getElementById('r-end').value=new Date(y,m+1,0).toISOString().slice(0,10);
+}
+function dChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+async function renderReports(){
+  const s=document.getElementById('r-start').value;
+  const e=document.getElementById('r-end').value;
+  const isPriv=CU.role==='admin'||CU.role==='dev';
+  document.getElementById('r-scope').textContent=isPriv?'全部人员数据':'我的数据';
+  let dq=db.from('daily_reports').select('*').gte('report_date',s).lte('report_date',e);
+  let fq=db.from('defect_logs').select('*').gte('log_date',s).lte('log_date',e);
+  if(!isPriv){dq=dq.eq('tester_id',CU.id);fq=fq.eq('tester_id',CU.id);}
+  const[{data:d1},{data:d2}]=await Promise.all([dq,fq]);
+  const daily=d1||[];const defs=d2||[];
+
+  const dmap={};daily.forEach(r=>{dmap[r.report_date]=(dmap[r.report_date]||0)+r.tested_qty;});
+  const dL=Object.keys(dmap).sort();
+  dChart('daily');charts['daily']=new Chart(document.getElementById('ch-daily'),{type:'bar',data:{labels:dL.map(x=>x.slice(5)),datasets:[{label:'测试数量',data:dL.map(d=>dmap[d]),backgroundColor:'#B5D4F4',borderColor:'#185FA5',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
+
+  const tmap={};defs.forEach(d=>{tmap[d.defect_type]=(tmap[d.defect_type]||0)+1;});
+  dChart('type');charts['type']=new Chart(document.getElementById('ch-type'),{type:'doughnut',data:{labels:Object.keys(tmap),datasets:[{data:Object.values(tmap),backgroundColor:['#F09595','#AFA9EC','#FAC775','#85B7EB','#5DCAA5','#D3D1C7']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}});
+
+  const mmap={};defs.forEach(d=>{mmap[d.model]=(mmap[d.model]||0)+1;});
+  const mS=Object.entries(mmap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  dChart('model');charts['model']=new Chart(document.getElementById('ch-model'),{type:'bar',data:{labels:mS.map(x=>x[0]),datasets:[{label:'不良数',data:mS.map(x=>x[1]),backgroundColor:'#F5C4B3',borderColor:'#D85A30',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
+
+  const pmap={};daily.forEach(r=>{const n=r.tester_name||'未知';pmap[n]=(pmap[n]||0)+r.tested_qty;});
+  const pS=Object.entries(pmap).sort((a,b)=>b[1]-a[1]);
+  dChart('person');charts['person']=new Chart(document.getElementById('ch-person'),{type:'bar',data:{labels:pS.map(x=>x[0]),datasets:[{label:'测试数量',data:pS.map(x=>x[1]),backgroundColor:'#9FE1CB',borderColor:'#1D9E75',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
+
+  const womap={};
+  daily.forEach(r=>{if(!womap[r.wo_no])womap[r.wo_no]={wo:r.wo_no,model:r.model,total:0,tested:0,defects:0};womap[r.wo_no].tested+=r.tested_qty;});
+  WOs.forEach(w=>{if(womap[w.wo_no])womap[w.wo_no].total=w.total_qty;});
+  defs.forEach(d=>{if(womap[d.wo_no])womap[d.wo_no].defects++;});
+  const woL=Object.values(womap).sort((a,b)=>b.tested-a.tested);
+  const wt=document.getElementById('wo-prog-tbl');
+  wt.innerHTML=woL.length?('<thead><tr><th>工单号</th><th>产品型号</th><th>工单总量</th><th>已测数量</th><th>不良数/不良率</th><th>完成进度</th></tr></thead><tbody>'+woL.map(w=>{
+    const pct=w.total>0?Math.min(100,Math.round(w.tested/w.total*100)):0;
+    const rate=w.tested>0?(w.defects/w.tested*100).toFixed(2)+'%':'—';
+    return `<tr><td style="font-family:monospace;font-size:12px">${w.wo}</td><td style="font-weight:600">${w.model}</td><td>${w.total||'—'}</td><td>${w.tested}</td><td>${w.defects} / ${rate}</td><td style="min-width:120px"><div style="display:flex;align-items:center;gap:8px"><div style="flex:1"><div class="mp"><div class="mpf" style="width:${pct}%"></div></div></div><span style="font-size:12px;color:var(--text2);width:32px">${pct}%</span></div></td></tr>`;
+  }).join('')+'</tbody>'):'<tr><td class="empty" colspan="6">暂无数据</td></tr>';
+}
+
+// ─── PREVIEW ───
+function pvFile(url,type){
+  const pc=document.getElementById('pvcontent');
+  if(type==='image') pc.innerHTML=`<img src="${url}">`;
+  else if(type==='video') pc.innerHTML=`<video src="${url}" controls autoplay style="max-width:90vw;max-height:75vh;border-radius:8px"></video>`;
+  else if(type==='audio') pc.innerHTML=`<div style="background:#222;padding:20px;border-radius:8px"><audio src="${url}" controls></audio></div>`;
+  document.getElementById('pvwrap').classList.add('open');
+}
+</script>
+</body>
+</html>
