@@ -1,505 +1,80 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>产品测试记录系统</title>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#fff;--bg2:#f8f8f6;--bg3:#f1efe8;
-  --text:#1a1a1a;--text2:#6b6b6b;--text3:#aaa;
-  --border:rgba(0,0,0,0.1);--border2:rgba(0,0,0,0.2);
-  --blue:#185FA5;--bluebg:#E6F1FB;
-  --red:#A32D2D;--redbg:#FCEBEB;
-  --amber:#854F0B;--amberbg:#FAEEDA;
-  --green:#3B6D11;--greenbg:#EAF3DE;
-  --purple:#534AB7;--purplebg:#EEEDFE;
-  --teal:#0F6E56;--tealbg:#E1F5EE;
-}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg2);color:var(--text);min-height:100vh}
-.login-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg2)}
-.login-box{background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:40px;width:380px;max-width:90vw}
-.login-logo{font-size:18px;font-weight:700;text-align:center;margin-bottom:8px}
-.login-logo span{color:var(--blue)}
-.login-sub{font-size:13px;color:var(--text2);text-align:center;margin-bottom:28px}
-.login-field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
-.login-field label{font-size:12px;color:var(--text2);font-weight:500}
-.login-field input{height:40px;border:1px solid var(--border2);border-radius:8px;padding:0 12px;font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;outline:none}
-.login-field input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(24,95,165,0.1)}
-.login-btn{width:100%;height:42px;background:var(--text);color:var(--bg);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;font-family:inherit}
-.login-btn:hover{opacity:.85}
-.login-err{font-size:12px;color:var(--red);text-align:center;margin-top:8px;min-height:18px}
-.app{display:none}
-.topbar{background:var(--bg);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;gap:12px;height:50px;position:sticky;top:0;z-index:100}
-.logo{font-size:14px;font-weight:700}
-.logo span{color:var(--blue)}
-.nav{display:flex;gap:2px;margin-left:12px}
-.nav-btn{padding:5px 12px;font-size:13px;border:none;background:none;cursor:pointer;color:var(--text2);border-radius:6px;font-family:inherit}
-.nav-btn:hover{background:var(--bg2)}
-.nav-btn.active{background:var(--bg3);color:var(--text);font-weight:500}
-.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
-.user-pill{font-size:12px;color:var(--text2);background:var(--bg2);padding:4px 10px;border-radius:20px}
-.logout-btn{font-size:12px;color:var(--red);background:none;border:none;cursor:pointer;font-family:inherit}
-.main{max-width:1200px;margin:0 auto;padding:20px}
-.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
-.stat-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
-.stat-label{font-size:12px;color:var(--text2);margin-bottom:6px}
-.stat-value{font-size:22px;font-weight:700}
-.stat-value.blue{color:var(--blue)}.stat-value.red{color:var(--red)}.stat-value.amber{color:var(--amber)}.stat-value.green{color:var(--green)}
-.prog{height:4px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden}
-.prog-fill{height:100%;background:var(--blue);border-radius:2px;transition:width .3s}
-.card{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:18px}
-.toolbar{display:flex;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
-input,select,textarea{font-family:inherit;font-size:13px;border:1px solid var(--border2);border-radius:7px;background:var(--bg);color:var(--text);padding:0 10px;height:34px;outline:none}
-input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(24,95,165,0.1)}
-textarea{height:70px;padding:8px 10px;resize:vertical}
-input.err{border-color:var(--red)}
-.toolbar input{width:190px}.toolbar select{width:130px}
-.btn{height:34px;padding:0 14px;font-size:13px;border-radius:7px;cursor:pointer;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-family:inherit}
-.btn:hover{background:var(--bg2)}
-.btn-primary{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:500}
-.btn-primary:hover{opacity:.85}
-.btn-sm{height:28px;padding:0 10px;font-size:12px}
-.btn-danger{color:var(--red);border-color:rgba(163,45,45,.3)}
-.btn-danger:hover{background:var(--redbg)}
-.spacer{flex:1}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{padding:9px 12px;text-align:left;font-weight:500;color:var(--text2);font-size:12px;background:var(--bg2);border-bottom:1px solid var(--border)}
-td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:var(--bg2)}
-.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
-.b-red{background:var(--redbg);color:var(--red)}.b-purple{background:var(--purplebg);color:var(--purple)}
-.b-amber{background:var(--amberbg);color:var(--amber)}.b-blue{background:var(--bluebg);color:var(--blue)}
-.b-teal{background:var(--tealbg);color:var(--teal)}.b-gray{background:var(--bg3);color:var(--text2)}
-.thumb{width:32px;height:32px;border-radius:5px;object-fit:cover;border:1px solid var(--border);cursor:pointer}
-.thumb-file{width:32px;height:32px;border-radius:5px;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text2);cursor:pointer}
-.attach-row{display:flex;gap:4px;flex-wrap:wrap}
-.rc-text{color:var(--text2);font-size:12px;line-height:1.5;max-width:260px}
-.empty{text-align:center;padding:3rem;color:var(--text2);font-size:13px}
-.loading{text-align:center;padding:2rem;color:var(--text2);font-size:13px}
-.prog-row{font-size:11px;color:var(--text2);margin-top:2px}
-.modal-wrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:flex-start;justify-content:center;padding:30px 16px;overflow-y:auto}
-.modal-wrap.open{display:flex}
-.modal{background:var(--bg);border-radius:12px;border:1px solid var(--border);padding:22px;width:560px;max-width:100%}
-.modal h2{font-size:15px;font-weight:600;margin-bottom:18px}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:11px}
-.fg{display:flex;flex-direction:column;gap:4px}
-.fg.full{grid-column:1/-1}
-.fg label{font-size:12px;color:var(--text2)}
-.fg .opt{font-size:11px;color:var(--text3);margin-left:3px}
-.err-msg{font-size:11px;color:var(--red);margin-top:1px}
-.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
-.upload-zone{border:1.5px dashed var(--border2);border-radius:8px;padding:12px;text-align:center;cursor:pointer;font-size:13px;color:var(--text2)}
-.upload-zone:hover{background:var(--bg2)}
-.upload-previews{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-.up-item{position:relative}
-.up-item img,.up-item video{width:68px;height:68px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block}
-.up-item .up-file{width:68px;height:68px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;color:var(--text2);gap:3px}
-.up-rm{position:absolute;top:-6px;right:-6px;width:16px;height:16px;background:var(--red);color:#fff;border-radius:50%;border:none;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center}
-.preview-wrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:300;align-items:center;justify-content:center;flex-direction:column;gap:12px}
-.preview-wrap.open{display:flex}
-.preview-wrap img{max-width:90vw;max-height:75vh;border-radius:8px}
-.preview-close{color:#fff;font-size:13px;cursor:pointer;padding:6px 18px;border:1px solid rgba(255,255,255,.35);border-radius:6px}
-.user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;padding:14px}
-.user-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px}
-.uc-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
-.av0{background:var(--bluebg);color:var(--blue)}.av1{background:var(--tealbg);color:var(--teal)}
-.av2{background:var(--amberbg);color:var(--amber)}.av3{background:var(--purplebg);color:var(--purple)}.av4{background:var(--redbg);color:var(--red)}
-.uc-name{font-size:14px;font-weight:500}.uc-meta{font-size:12px;color:var(--text2)}
-.uc-pw{font-size:11px;color:var(--text3);margin-top:4px;font-family:monospace}
-.uc-actions{display:flex;gap:6px;margin-top:10px}
-.report-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
-.report-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px}
-.report-card h3{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:14px}
-.report-card.full{grid-column:1/-1}
-.chart-wrap{position:relative;height:220px}
-.wo-table{width:100%;font-size:12px;border-collapse:collapse}
-.wo-table th{padding:6px 10px;background:var(--bg2);font-weight:500;color:var(--text2);border-bottom:1px solid var(--border)}
-.wo-table td{padding:7px 10px;border-bottom:1px solid var(--border)}
-.wo-table tr:last-child td{border-bottom:none}
-.mini-prog{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:3px}
-.mini-prog-fill{height:100%;border-radius:3px;background:var(--blue)}
-.role-admin{background:#1a1a1a;color:#fff}.role-dev{background:var(--purplebg);color:var(--purple)}
-.role-tester{background:var(--bluebg);color:var(--blue)}.role-qa{background:var(--tealbg);color:var(--teal)}
-.toast{position:fixed;bottom:20px;right:20px;background:#1a1a1a;color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
-.toast.show{opacity:1}
-@media(max-width:768px){.stats-row{grid-template-columns:1fr 1fr}.report-grid{grid-template-columns:1fr}.report-card.full{grid-column:1}.main{padding:12px}.toolbar input{width:140px}}
-</style>
-</head>
-<body>
+-- 完全重建
+drop table if exists defect_logs cascade;
+drop table if exists daily_reports cascade;
+drop table if exists work_orders cascade;
+drop table if exists users cascade;
 
-<div class="login-page" id="login-page">
-  <div class="login-box">
-    <div class="login-logo">产品<span>测试</span>记录系统</div>
-    <div class="login-sub">请使用管理员分配的账号登录</div>
-    <div class="login-field"><label>工号</label><input id="l-empid" placeholder="请输入工号" onkeydown="if(event.key==='Enter')doLogin()"></div>
-    <div class="login-field"><label>密码</label><input type="password" id="l-pw" placeholder="请输入密码" onkeydown="if(event.key==='Enter')doLogin()"></div>
-    <button class="login-btn" onclick="doLogin()">登 录</button>
-    <div class="login-err" id="login-err"></div>
-  </div>
-</div>
+-- 用户表
+create table users (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  emp_id text not null unique,
+  password text not null default '123456',
+  dept text not null default '测试部',
+  role text not null default 'tester',
+  note text default '',
+  created_at timestamptz default now()
+);
 
-<div class="app" id="app">
-<div class="topbar">
-  <div class="logo">产品<span>测试</span>记录</div>
-  <div class="nav">
-    <button class="nav-btn active" onclick="switchPage('records',this)">测试记录</button>
-    <button class="nav-btn" onclick="switchPage('reports',this)">报表</button>
-    <button class="nav-btn" id="nav-users" style="display:none" onclick="switchPage('users',this)">用户管理</button>
-  </div>
-  <div class="topbar-right">
-    <div class="user-pill" id="user-pill">—</div>
-    <button class="logout-btn" onclick="doLogout()">退出</button>
-  </div>
-</div>
-<div class="main">
+-- 工单表（管理员创建，全局共享）
+create table work_orders (
+  id uuid primary key default gen_random_uuid(),
+  wo_no text not null unique,
+  model text not null,
+  total_qty integer not null default 0,
+  note text default '',
+  status text not null default 'active',
+  created_by uuid references users(id),
+  created_at timestamptz default now()
+);
 
-<div id="page-records">
-  <div class="stats-row">
-    <div class="stat-card"><div class="stat-label">我的记录总数</div><div class="stat-value" id="s-total">—</div></div>
-    <div class="stat-card"><div class="stat-label">今日已测 / 工单总量</div><div class="stat-value blue" id="s-tested">—</div><div class="prog"><div class="prog-fill" id="s-prog" style="width:0%"></div></div></div>
-    <div class="stat-card"><div class="stat-label">功能异常</div><div class="stat-value red" id="s-func">—</div></div>
-    <div class="stat-card"><div class="stat-label">今日剩余待测</div><div class="stat-value amber" id="s-remain">—</div></div>
-  </div>
-  <div class="card">
-    <div class="toolbar">
-      <input type="text" id="search-inp" placeholder="搜索型号 / 工单 / Root Cause..." oninput="renderTable()">
-      <select id="filter-issue" onchange="renderTable()">
-        <option value="">全部 Issue 类型</option>
-        <option>功能异常</option><option>外观缺陷</option><option>性能不达标</option><option>兼容性问题</option><option>安全隐患</option><option>其他</option>
-      </select>
-      <input type="date" id="filter-date" onchange="renderTable()" style="width:148px">
-      <div class="spacer"></div>
-      <button class="btn btn-primary" onclick="openRecordModal()">+ 新增记录</button>
-    </div>
-    <div id="table-wrap"><div class="loading">加载中...</div></div>
-  </div>
-</div>
+-- 每日测试报告（每人每天每工单一条）
+create table daily_reports (
+  id uuid primary key default gen_random_uuid(),
+  work_order_id uuid not null references work_orders(id) on delete cascade,
+  wo_no text not null,
+  model text not null,
+  tester_id uuid not null references users(id),
+  tester_name text not null,
+  report_date date not null,
+  tested_qty integer not null default 0,
+  created_at timestamptz default now(),
+  unique(work_order_id, tester_id, report_date)
+);
 
-<div id="page-reports" style="display:none">
-  <div class="toolbar" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;margin-bottom:14px">
-    <label style="font-size:13px;color:var(--text2)">日期范围</label>
-    <input type="date" id="r-start" style="width:148px">
-    <span style="font-size:13px;color:var(--text2)">至</span>
-    <input type="date" id="r-end" style="width:148px">
-    <button class="btn btn-primary" onclick="renderReports()">查询</button>
-    <div class="spacer"></div>
-    <span id="report-scope" style="font-size:12px;color:var(--text2)"></span>
-  </div>
-  <div class="report-grid">
-    <div class="report-card"><h3>每日测试数量</h3><div class="chart-wrap"><canvas id="chart-daily"></canvas></div></div>
-    <div class="report-card"><h3>Issue 类型分布</h3><div class="chart-wrap"><canvas id="chart-issue"></canvas></div></div>
-    <div class="report-card"><h3>各产品型号缺陷排行</h3><div class="chart-wrap"><canvas id="chart-model"></canvas></div></div>
-    <div class="report-card"><h3>按人员统计测试量</h3><div class="chart-wrap"><canvas id="chart-person"></canvas></div></div>
-    <div class="report-card full"><h3>工单完成进度汇总</h3><div style="overflow-x:auto"><table class="wo-table" id="wo-table"></table></div></div>
-  </div>
-</div>
+-- 不良品记录表
+create table defect_logs (
+  id uuid primary key default gen_random_uuid(),
+  work_order_id uuid not null references work_orders(id) on delete cascade,
+  wo_no text not null,
+  model text not null,
+  tester_id uuid not null references users(id),
+  tester_name text not null,
+  log_date date not null,
+  defect_type text not null,
+  defect_desc text default '',
+  root_cause text default '',
+  attachments jsonb default '[]',
+  created_at timestamptz default now()
+);
 
-<div id="page-users" style="display:none">
-  <div class="card">
-    <div class="toolbar">
-      <input type="text" id="user-search" placeholder="搜索姓名 / 工号..." oninput="renderUsers()" style="width:200px">
-      <div class="spacer"></div>
-      <button class="btn btn-primary" onclick="openUserModal()">+ 新增用户</button>
-    </div>
-    <div class="user-grid" id="user-grid"><div class="loading">加载中...</div></div>
-  </div>
-</div>
+-- RLS
+alter table users enable row level security;
+alter table work_orders enable row level security;
+alter table daily_reports enable row level security;
+alter table defect_logs enable row level security;
 
-</div>
-</div>
+create policy "open_users" on users for all to anon, authenticated using (true) with check (true);
+create policy "open_wo" on work_orders for all to anon, authenticated using (true) with check (true);
+create policy "open_daily" on daily_reports for all to anon, authenticated using (true) with check (true);
+create policy "open_defect" on defect_logs for all to anon, authenticated using (true) with check (true);
 
-<div class="modal-wrap" id="record-modal">
-<div class="modal">
-  <h2 id="rm-title">新增测试记录</h2>
-  <div class="form-grid">
-    <div class="fg"><label>产品型号 *</label><input id="f-model" placeholder="≤9位 字母+数字" maxlength="9" oninput="validateModel()"><span class="err-msg" id="err-model" style="display:none">仅限字母+数字，不超过9位</span></div>
-    <div class="fg"><label>生产工单 *</label><input id="f-wo" placeholder="M + 6位数字" maxlength="7" oninput="validateWO()"><span class="err-msg" id="err-wo" style="display:none">格式：M + 6位数字</span></div>
-    <div class="fg"><label>工单总数量 *</label><input type="number" id="f-total" placeholder="如 1000" min="1"></div>
-    <div class="fg"><label>今日已测数量 *</label><input type="number" id="f-tested" placeholder="如 200" min="0"></div>
-    <div class="fg"><label>测试日期 *</label><input type="date" id="f-date"></div>
-    <div class="fg"><label>Issue 类型 *</label>
-      <select id="f-issue"><option>功能异常</option><option>外观缺陷</option><option>性能不达标</option><option>兼容性问题</option><option>安全隐患</option><option>其他</option></select>
-    </div>
-    <div class="fg full"><label>研发分析 Root Cause <span class="opt">（选填，由研发工程师填写）</span></label><textarea id="f-rc" placeholder="描述根本原因分析，可由研发工程师后续填写..."></textarea></div>
-    <div class="fg full">
-      <label>附件上传 <span class="opt">（图片 / 视频 / 文档）</span></label>
-      <div class="upload-zone" onclick="document.getElementById('file-inp').click()">点击上传文件</div>
-      <input type="file" id="file-inp" multiple accept="image/*,video/*,.pdf,.doc,.docx,.xlsx" style="display:none" onchange="handleFiles(event)">
-      <div class="upload-previews" id="upload-previews"></div>
-    </div>
-  </div>
-  <div class="modal-btns">
-    <button class="btn" onclick="closeRecordModal()">取消</button>
-    <button class="btn btn-primary" id="rm-save-btn" onclick="saveRecord()">保存</button>
-  </div>
-</div>
-</div>
+grant usage on schema public to anon, authenticated;
+grant all privileges on table users to anon, authenticated;
+grant all privileges on table work_orders to anon, authenticated;
+grant all privileges on table daily_reports to anon, authenticated;
+grant all privileges on table defect_logs to anon, authenticated;
 
-<div class="modal-wrap" id="user-modal">
-<div class="modal" style="width:420px">
-  <h2 id="um-title">新增用户</h2>
-  <div class="form-grid">
-    <div class="fg"><label>姓名 *</label><input id="u-name" placeholder="请输入姓名"></div>
-    <div class="fg"><label>工号 *</label><input id="u-empid" placeholder="如 EMP001"></div>
-    <div class="fg"><label>登录密码 *</label><input id="u-pw" placeholder="默认 123456" value="123456"></div>
-    <div class="fg"><label>部门</label><select id="u-dept"><option>测试部</option><option>研发部</option><option>生产部</option><option>品质部</option><option>管理部</option><option>其他</option></select></div>
-    <div class="fg"><label>角色</label><select id="u-role"><option value="tester">测试员</option><option value="dev">研发工程师</option><option value="qa">品质工程师</option><option value="admin">管理员</option></select></div>
-    <div class="fg full"><label>备注</label><input id="u-note" placeholder="可选"></div>
-  </div>
-  <div class="modal-btns">
-    <button class="btn" onclick="closeUserModal()">取消</button>
-    <button class="btn btn-primary" onclick="saveUser()">保存</button>
-  </div>
-</div>
-</div>
-
-<div class="preview-wrap" id="preview-wrap">
-  <div id="preview-content"></div>
-  <div class="preview-close" onclick="closePreview()">关闭预览</div>
-</div>
-<div class="toast" id="toast"></div>
-
-<script>
-const SUPA_URL='https://zrwfpakmzdqhphdcdkzo.supabase.co';
-const SUPA_KEY='sb_publishable_Ut3TIDztI5-QYRAK4fjOVA_4e14FsV3';
-const {createClient}=supabase;
-const db=createClient(SUPA_URL,SUPA_KEY);
-let currentUser=null,allRecords=[],allUsers=[],editRecordId=null,editUserId=null,pendingFiles=[],charts={};
-const LAST_KEY='testform_last';
-const issueBadge={'功能异常':'b-red','外观缺陷':'b-purple','性能不达标':'b-amber','兼容性问题':'b-blue','安全隐患':'b-red','其他':'b-gray'};
-const roleLabel={'admin':'管理员','dev':'研发工程师','tester':'测试员','qa':'品质工程师'};
-const roleClass={'admin':'role-admin','dev':'role-dev','tester':'role-tester','qa':'role-qa'};
-
-function toast(msg,dur=2500){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),dur);}
-
-async function doLogin(){
-  const empId=document.getElementById('l-empid').value.trim();
-  const pw=document.getElementById('l-pw').value;
-  document.getElementById('login-err').textContent='';
-  if(!empId||!pw){document.getElementById('login-err').textContent='请输入工号和密码';return;}
-  const{data,error}=await db.from('users').select('*').eq('emp_id',empId).eq('password',pw).single();
-  if(error||!data){document.getElementById('login-err').textContent='工号或密码错误';return;}
-  currentUser=data;sessionStorage.setItem('user',JSON.stringify(data));showApp();
-}
-function doLogout(){currentUser=null;sessionStorage.removeItem('user');document.getElementById('app').style.display='none';document.getElementById('login-page').style.display='flex';document.getElementById('l-empid').value='';document.getElementById('l-pw').value='';}
-
-function showApp(){
-  document.getElementById('login-page').style.display='none';
-  document.getElementById('app').style.display='block';
-  document.getElementById('user-pill').textContent=currentUser.name+' · '+(roleLabel[currentUser.role]||currentUser.role);
-  if(currentUser.role==='admin') document.getElementById('nav-users').style.display='';
-  initReportDates();loadRecords();
-  if(currentUser.role==='admin') loadUsers();
-}
-
-function switchPage(p,btn){
-  ['records','reports','users'].forEach(id=>document.getElementById('page-'+id).style.display=id===p?'':'none');
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  if(p==='reports') renderReports();
-  if(p==='users') renderUsers();
-}
-
-async function loadRecords(){
-  const isAdminOrDev=currentUser.role==='admin'||currentUser.role==='dev';
-  let q=db.from('test_records').select('*').order('created_at',{ascending:false});
-  if(!isAdminOrDev) q=q.eq('tester_id',currentUser.id);
-  const{data,error}=await q;
-  if(error){toast('加载失败');return;}
-  allRecords=data||[];renderTable();
-}
-
-function renderTable(){
-  const q=document.getElementById('search-inp').value.toLowerCase();
-  const fi=document.getElementById('filter-issue').value;
-  const fd=document.getElementById('filter-date').value;
-  const filtered=allRecords.filter(r=>(!q||r.model.toLowerCase().includes(q)||r.wo.toLowerCase().includes(q)||(r.root_cause||'').toLowerCase().includes(q))&&(!fi||r.issue_type===fi)&&(!fd||r.test_date===fd));
-  updateStats();
-  const wrap=document.getElementById('table-wrap');
-  if(!filtered.length){wrap.innerHTML='<div class="empty">暂无记录</div>';return;}
-  const isAdminOrDev=currentUser.role==='admin'||currentUser.role==='dev';
-  wrap.innerHTML=`<div style="overflow-x:auto"><table><thead><tr>
-    <th style="width:88px">产品型号</th><th style="width:98px">生产工单</th>
-    <th style="width:145px">工单数量</th><th style="width:92px">测试日期</th>
-    <th style="width:98px">Issue 类型</th><th>Root Cause</th>
-    <th style="width:70px">附件</th>
-    ${isAdminOrDev?'<th style="width:76px">测试员</th>':''}
-    <th style="width:88px"></th>
-  </tr></thead><tbody>${filtered.map(r=>{
-    const remain=Math.max(0,r.total_qty-r.tested_qty);
-    const pct=r.total_qty>0?Math.round(r.tested_qty/r.total_qty*100):0;
-    const files=r.attachments||[];
-    const thumbs=files.map(f=>{
-      if(f.type==='image') return `<img class="thumb" src="${f.url}" title="${f.name}" onclick="previewFile('${f.url}','image')">`;
-      if(f.type==='video') return `<div class="thumb-file" onclick="previewFile('${f.url}','video')" title="${f.name}" style="font-size:11px">▶</div>`;
-      return `<div class="thumb-file" title="${f.name}">${f.ext}</div>`;
-    }).join('');
-    const canEdit=currentUser.role==='admin'||currentUser.role==='dev'||r.tester_id===currentUser.id;
-    return `<tr>
-      <td style="font-weight:600">${r.model}</td>
-      <td style="font-family:monospace;font-size:12px">${r.wo}</td>
-      <td><div style="font-size:12px">总量 <b>${r.total_qty}</b> · 已测 <b>${r.tested_qty}</b></div><div class="prog-row">剩余 ${remain} 台 · ${pct}%</div><div class="prog" style="margin-top:3px"><div class="prog-fill" style="width:${pct}%"></div></div></td>
-      <td style="color:var(--text2);font-size:12px">${r.test_date}</td>
-      <td><span class="badge ${issueBadge[r.issue_type]||'b-gray'}">${r.issue_type}</span></td>
-      <td><div class="rc-text">${r.root_cause||'<span style="color:var(--text3);font-style:italic">待研发填写</span>'}</div></td>
-      <td><div class="attach-row">${thumbs||'<span style="color:var(--text3);font-size:11px">—</span>'}</div></td>
-      ${isAdminOrDev?`<td style="font-size:12px;color:var(--text2)">${r.tester_name||'—'}</td>`:''}
-      <td>${canEdit?`<button class="btn btn-sm" onclick="editRecord('${r.id}')" style="margin-bottom:3px;width:100%">编辑</button><button class="btn btn-sm btn-danger" onclick="delRecord('${r.id}')" style="width:100%">删除</button>`:''}</td>
-    </tr>`;
-  }).join('')}</tbody></table></div>`;
-}
-
-function updateStats(){
-  const today=new Date().toISOString().slice(0,10);
-  const tr=allRecords.filter(r=>r.test_date===today);
-  const tt=tr.reduce((a,b)=>a+b.tested_qty,0),tq=tr.reduce((a,b)=>a+b.total_qty,0);
-  const pct=tq>0?Math.round(tt/tq*100):0;
-  document.getElementById('s-total').textContent=allRecords.length;
-  document.getElementById('s-tested').textContent=tt+' / '+tq;
-  document.getElementById('s-prog').style.width=pct+'%';
-  document.getElementById('s-func').textContent=allRecords.filter(r=>r.issue_type==='功能异常').length;
-  document.getElementById('s-remain').textContent=Math.max(0,tq-tt);
-}
-
-function saveLastForm(d){try{localStorage.setItem(LAST_KEY,JSON.stringify(d));}catch{}}
-function loadLastForm(){try{return JSON.parse(localStorage.getItem(LAST_KEY))||{};}catch{return {};}}
-
-function validateModel(){const v=document.getElementById('f-model').value;const ok=/^[A-Za-z0-9]{1,9}$/.test(v);document.getElementById('err-model').style.display=v&&!ok?'block':'none';document.getElementById('f-model').classList.toggle('err',v&&!ok);return!v||ok;}
-function validateWO(){const v=document.getElementById('f-wo').value;const ok=/^M\d{6}$/.test(v);document.getElementById('err-wo').style.display=v&&!ok?'block':'none';document.getElementById('f-wo').classList.toggle('err',v&&!ok);return!v||ok;}
-
-function handleFiles(e){Array.from(e.target.files).forEach(f=>{const url=URL.createObjectURL(f);const ext=f.name.split('.').pop().toUpperCase();let type='file';if(f.type.startsWith('image/'))type='image';else if(f.type.startsWith('video/'))type='video';pendingFiles.push({name:f.name,url,type,ext});});renderUploadPreviews();document.getElementById('file-inp').value='';}
-function renderUploadPreviews(){document.getElementById('upload-previews').innerHTML=pendingFiles.map((f,i)=>{let inner='';if(f.type==='image')inner=`<img src="${f.url}" style="width:68px;height:68px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block">`;else if(f.type==='video')inner=`<video src="${f.url}" style="width:68px;height:68px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block" muted></video>`;else inner=`<div class="up-file"><span style="font-size:16px">📄</span><span>${f.ext}</span></div>`;return `<div class="up-item">${inner}<button class="up-rm" onclick="removeFile(${i})">✕</button></div>`;}).join('');}
-function removeFile(i){pendingFiles.splice(i,1);renderUploadPreviews();}
-
-function openRecordModal(){
-  editRecordId=null;pendingFiles=[];
-  document.getElementById('rm-title').textContent='新增测试记录';
-  const last=loadLastForm();
-  document.getElementById('f-model').value=last.model||'';
-  document.getElementById('f-wo').value=last.wo||'';
-  document.getElementById('f-total').value=last.total_qty||'';
-  document.getElementById('f-tested').value='';
-  document.getElementById('f-date').value=new Date().toISOString().slice(0,10);
-  document.getElementById('f-issue').value=last.issue_type||'功能异常';
-  document.getElementById('f-rc').value='';
-  renderUploadPreviews();
-  document.getElementById('record-modal').classList.add('open');
-}
-function editRecord(id){
-  const r=allRecords.find(x=>x.id===id);if(!r)return;
-  editRecordId=id;pendingFiles=[...(r.attachments||[])];
-  document.getElementById('rm-title').textContent='编辑测试记录';
-  document.getElementById('f-model').value=r.model;
-  document.getElementById('f-wo').value=r.wo;
-  document.getElementById('f-total').value=r.total_qty;
-  document.getElementById('f-tested').value=r.tested_qty;
-  document.getElementById('f-date').value=r.test_date;
-  document.getElementById('f-issue').value=r.issue_type;
-  document.getElementById('f-rc').value=r.root_cause||'';
-  renderUploadPreviews();
-  document.getElementById('record-modal').classList.add('open');
-}
-function closeRecordModal(){document.getElementById('record-modal').classList.remove('open');}
-
-async function saveRecord(){
-  const model=document.getElementById('f-model').value.trim();
-  const wo=document.getElementById('f-wo').value.trim();
-  const total_qty=parseInt(document.getElementById('f-total').value)||0;
-  const tested_qty=parseInt(document.getElementById('f-tested').value)||0;
-  const test_date=document.getElementById('f-date').value;
-  const issue_type=document.getElementById('f-issue').value;
-  const root_cause=document.getElementById('f-rc').value.trim();
-  if(!model||!wo||!test_date||!total_qty){toast('请填写所有必填字段');return;}
-  if(!/^[A-Za-z0-9]{1,9}$/.test(model)){toast('产品型号格式不正确');return;}
-  if(!/^M\d{6}$/.test(wo)){toast('工单格式不正确');return;}
-  const btn=document.getElementById('rm-save-btn');
-  btn.textContent='保存中...';btn.disabled=true;
-  const payload={model,wo,total_qty,tested_qty,test_date,issue_type,root_cause,tester_id:currentUser.id,tester_name:currentUser.name,attachments:pendingFiles};
-  let error;
-  if(editRecordId){({error}=await db.from('test_records').update(payload).eq('id',editRecordId));}
-  else{({error}=await db.from('test_records').insert(payload));}
-  btn.textContent='保存';btn.disabled=false;
-  if(error){toast('保存失败：'+error.message);return;}
-  saveLastForm({model,wo,total_qty,issue_type});
-  toast(editRecordId?'记录已更新':'记录已保存');
-  closeRecordModal();await loadRecords();
-}
-async function delRecord(id){if(!confirm('确认删除此条记录？'))return;const{error}=await db.from('test_records').delete().eq('id',id);if(error){toast('删除失败');return;}toast('已删除');await loadRecords();}
-
-async function loadUsers(){const{data}=await db.from('users').select('*').order('created_at');allUsers=data||[];}
-function renderUsers(){
-  const q=document.getElementById('user-search').value.toLowerCase();
-  const avClass=['av0','av1','av2','av3','av4'];
-  const filtered=allUsers.filter(u=>u.name.toLowerCase().includes(q)||u.emp_id.toLowerCase().includes(q));
-  const grid=document.getElementById('user-grid');
-  if(!filtered.length){grid.innerHTML='<div style="color:var(--text2);font-size:13px;padding:1rem">暂无用户</div>';return;}
-  grid.innerHTML=filtered.map((u,i)=>`<div class="user-card"><div class="uc-head"><div class="avatar ${avClass[i%5]}">${u.name.slice(0,2)}</div><div><div class="uc-name">${u.name}</div><div class="uc-meta">${u.emp_id} · ${u.dept}</div></div></div><span class="badge ${roleClass[u.role]||'b-gray'}">${roleLabel[u.role]||u.role}</span><div class="uc-pw">密码：${u.password}</div>${u.note?`<div style="font-size:12px;color:var(--text2);margin-top:6px">${u.note}</div>`:''}<div class="uc-actions"><button class="btn btn-sm" onclick="editUser('${u.id}')">编辑</button><button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')">删除</button></div></div>`).join('');
-}
-function openUserModal(){editUserId=null;document.getElementById('um-title').textContent='新增用户';['u-name','u-empid','u-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('u-pw').value='123456';document.getElementById('u-dept').value='测试部';document.getElementById('u-role').value='tester';document.getElementById('user-modal').classList.add('open');}
-function editUser(id){const u=allUsers.find(x=>x.id===id);if(!u)return;editUserId=id;document.getElementById('um-title').textContent='编辑用户';document.getElementById('u-name').value=u.name;document.getElementById('u-empid').value=u.emp_id;document.getElementById('u-pw').value=u.password;document.getElementById('u-dept').value=u.dept;document.getElementById('u-role').value=u.role;document.getElementById('u-note').value=u.note||'';document.getElementById('user-modal').classList.add('open');}
-function closeUserModal(){document.getElementById('user-modal').classList.remove('open');}
-async function saveUser(){
-  const name=document.getElementById('u-name').value.trim();
-  const emp_id=document.getElementById('u-empid').value.trim();
-  const password=document.getElementById('u-pw').value.trim();
-  const dept=document.getElementById('u-dept').value;
-  const role=document.getElementById('u-role').value;
-  const note=document.getElementById('u-note').value.trim();
-  if(!name||!emp_id||!password){toast('姓名、工号、密码为必填项');return;}
-  const payload={name,emp_id,password,dept,role,note};
-  let error;
-  if(editUserId){({error}=await db.from('users').update(payload).eq('id',editUserId));}
-  else{({error}=await db.from('users').insert(payload));}
-  if(error){toast('保存失败：'+(error.message.includes('unique')?'工号已存在':error.message));return;}
-  toast(editUserId?'用户已更新':'用户已添加');closeUserModal();await loadUsers();renderUsers();
-}
-async function delUser(id){if(id===currentUser.id){toast('不能删除自己的账号');return;}if(!confirm('确认删除该用户？'))return;const{error}=await db.from('users').delete().eq('id',id);if(error){toast('删除失败');return;}toast('已删除');await loadUsers();renderUsers();}
-
-function initReportDates(){const now=new Date();const y=now.getFullYear(),m=now.getMonth();document.getElementById('r-start').value=new Date(y,m,1).toISOString().slice(0,10);document.getElementById('r-end').value=new Date(y,m+1,0).toISOString().slice(0,10);}
-function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
-
-async function renderReports(){
-  const start=document.getElementById('r-start').value;
-  const end=document.getElementById('r-end').value;
-  const isAdminOrDev=currentUser.role==='admin'||currentUser.role==='dev';
-  document.getElementById('report-scope').textContent=isAdminOrDev?'显示全部人员数据':'显示我的数据';
-  let q=db.from('test_records').select('*').gte('test_date',start).lte('test_date',end).order('test_date');
-  if(!isAdminOrDev) q=q.eq('tester_id',currentUser.id);
-  const{data}=await q;const recs=data||[];
-
-  const dailyMap={};recs.forEach(r=>{dailyMap[r.test_date]=(dailyMap[r.test_date]||0)+r.tested_qty;});
-  const dL=Object.keys(dailyMap).sort();const dV=dL.map(d=>dailyMap[d]);
-  destroyChart('daily');charts['daily']=new Chart(document.getElementById('chart-daily'),{type:'bar',data:{labels:dL.map(d=>d.slice(5)),datasets:[{label:'已测数量',data:dV,backgroundColor:'#B5D4F4',borderColor:'#185FA5',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
-
-  const issueMap={};recs.forEach(r=>{issueMap[r.issue_type]=(issueMap[r.issue_type]||0)+1;});
-  destroyChart('issue');charts['issue']=new Chart(document.getElementById('chart-issue'),{type:'doughnut',data:{labels:Object.keys(issueMap),datasets:[{data:Object.values(issueMap),backgroundColor:['#F09595','#AFA9EC','#FAC775','#85B7EB','#5DCAA5','#D3D1C7']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}});
-
-  const modelMap={};recs.forEach(r=>{modelMap[r.model]=(modelMap[r.model]||0)+1;});
-  const mS=Object.entries(modelMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  destroyChart('model');charts['model']=new Chart(document.getElementById('chart-model'),{type:'bar',data:{labels:mS.map(x=>x[0]),datasets:[{label:'缺陷数',data:mS.map(x=>x[1]),backgroundColor:'#F5C4B3',borderColor:'#D85A30',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
-
-  const pMap={};recs.forEach(r=>{const n=r.tester_name||'未知';pMap[n]=(pMap[n]||0)+r.tested_qty;});
-  const pS=Object.entries(pMap).sort((a,b)=>b[1]-a[1]);
-  destroyChart('person');charts['person']=new Chart(document.getElementById('chart-person'),{type:'bar',data:{labels:pS.map(x=>x[0]),datasets:[{label:'测试数量',data:pS.map(x=>x[1]),backgroundColor:'#9FE1CB',borderColor:'#1D9E75',borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
-
-  const woMap={};recs.forEach(r=>{if(!woMap[r.wo])woMap[r.wo]={wo:r.wo,model:r.model,total:r.total_qty,tested:0};woMap[r.wo].tested+=r.tested_qty;if(r.total_qty>woMap[r.wo].total)woMap[r.wo].total=r.total_qty;});
-  const woList=Object.values(woMap).sort((a,b)=>b.tested-a.tested);
-  const wt=document.getElementById('wo-table');
-  if(!woList.length){wt.innerHTML='<tr><td class="empty" colspan="5">暂无数据</td></tr>';}
-  else{wt.innerHTML='<thead><tr><th>工单号</th><th>产品型号</th><th>工单总量</th><th>已测数量</th><th>完成进度</th></tr></thead><tbody>'+woList.map(w=>{const pct=w.total>0?Math.round(w.tested/w.total*100):0;return`<tr><td style="font-family:monospace;font-size:12px">${w.wo}</td><td style="font-weight:500">${w.model}</td><td>${w.total}</td><td>${w.tested}</td><td style="min-width:120px"><div style="display:flex;align-items:center;gap:8px"><div style="flex:1"><div class="mini-prog"><div class="mini-prog-fill" style="width:${pct}%"></div></div></div><span style="font-size:12px;color:var(--text2);width:32px">${pct}%</span></div></td></tr>`;}).join('')+'</tbody>';}
-}
-
-function previewFile(url,type){const pc=document.getElementById('preview-content');if(type==='image')pc.innerHTML=`<img src="${url}">`;else pc.innerHTML=`<video src="${url}" controls autoplay style="max-width:90vw;max-height:75vh;border-radius:8px"></video>`;document.getElementById('preview-wrap').classList.add('open');}
-function closePreview(){document.getElementById('preview-wrap').classList.remove('open');}
-
-const saved=sessionStorage.getItem('user');
-if(saved){try{currentUser=JSON.parse(saved);showApp();}catch{}}
-</script>
-</body>
-</html>
+-- 默认管理员
+insert into users (name, emp_id, password, dept, role)
+values ('管理员', 'admin', 'admin888', '管理部', 'admin');
